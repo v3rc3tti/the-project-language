@@ -38,7 +38,6 @@ typedef enum {
     T_NOT,     // '~'
     T_COMMA,   // ','
     T_POINT,   // '.'
-    T_DOLLAR,  // '$'
     T_FALSE,   // 'false'
     T_TRUE,    // 'true'
     T_INTEGER, // 'Integer'
