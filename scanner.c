@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "scanner.h"
 
 #define NAME_LEN 10
@@ -7,10 +8,12 @@ typedef struct {
     SymbolType type;
 } Name;
 
+bool lexError;
+
 static char *source;
 static char ch;
 static int lineNumber;
-static char names[17];
+static Name names[17];
 static int nameCount;
 
 static void reserveName(const char *str, SymbolType type) {
@@ -19,7 +22,7 @@ static void reserveName(const char *str, SymbolType type) {
     nameCount++;
 }
 
-static SymbolType getSymbolType(const char *str, int strLen) {
+static SymbolType getSymbolType(char *str, int strLen) {
     if (strLen > NAME_LEN) {
         strLen = NAME_LEN;
     }
@@ -33,7 +36,7 @@ static SymbolType getSymbolType(const char *str, int strLen) {
 }
 
 static void advance() {
-    if (*current != '\0') {
+    if (*source != '\0') {
         source++;
         ch = *source;
     }
@@ -51,11 +54,11 @@ static bool isAlpha() {
 }
 
 static bool isDigit() {
-    return (ch >= '0' && c <= '9');
+    return (ch >= '0' && ch <= '9');
 }
 
 static void skipBlanks() {
-    while (!isEOF() && (ch == ' ' || ch == '\n' || ch == '\t' || ch == '$')) {
+    while (!isEOF() && (ch <= 0x20 || ch == '$')) {
         if (ch == '$') {
             while (!isEOF() && ch != '\n') {
                 advance();
@@ -66,7 +69,9 @@ static void skipBlanks() {
 }
 
 void initScan(char *str) {
+    lexError = false;
     source = str;
+    ch = *source;
     lineNumber = 1;
     nameCount = 0;
     reserveName("begin", T_BEGIN);
@@ -89,70 +94,75 @@ void initScan(char *str) {
 }
 
 SymbolType scanNext() {
-    skipBlanks();
-    switch (ch) {
-        case '[':
-            advance();
-            if (ch == ']') {
+    while (true) {
+        skipBlanks();
+        switch (ch) {
+            case '[':
                 advance();
-                return T_GUARD;
-            } else {
-                return T_LSQUAR;
-            }
-        case ']': advance(); return T_RSQUAR;
-        case '=': advance(); return T_EQ;
-        case '<': advance(); return T_LES;
-        case '>': advance(); return T_GRE;
-        case '-':
-            advance();
-            if (ch == '>') {
-                advance();
-                return T_ARROW;
-            } else {
-                return T_MINUS;
-            }
-        case ':':
-            advance();
-            if (ch == '=') {
-                advance();
-                return T_ASSIGN;
-            } else {
-                //ERROR
-                break;
-            }
-        case '&': advance(); return T_AND;
-        case '|': advance(); return T_OR;
-        case ';': advance(); return T_SEMI;
-        case '+': advance(); return T_PLUS;
-        case '*': advance(); return T_MULT;
-        case '/': advance(); return T_DIV;
-        case '\\': advance(); return T_MOD;
-        case '(': advance(); return T_LPAREN;
-        case ')': advance(); return T_RPAREN;
-        case '~': advance(); return T_NOT;
-        case ',': advance(); return T_COMMA;
-        case '.': advance(); return T_POINT;
-        case '\0': advance(); return T_EOF;
-        default:
-            if (isDigit()) {
-                while (isDigit()) {
+                if (ch == ']') {
                     advance();
+                    return T_GUARD;
+                } else {
+                    return T_LSQUAR;
                 }
-                return T_NUM;
-            } else if (isAlpha()) {
-                char nameStr[NAME_LEN];
-                int nameLen = 0;
-                while (isAlpha() || isDigit()) {
-                    if (nameLen < NAME_LEN) { 
-                        nameStr[nameLen] = ch;
+            case ']': advance(); return T_RSQUAR;
+            case '=': advance(); return T_EQ;
+            case '<': advance(); return T_LES;
+            case '>': advance(); return T_GRE;
+            case '-':
+                advance();
+                if (ch == '>') {
+                    advance();
+                    return T_ARROW;
+                } else {
+                    return T_MINUS;
+                }
+            case ':':
+                advance();
+                if (ch == '=') {
+                    advance();
+                    return T_ASSIGN;
+                } else {
+                    lexError = true;
+                    printf("Unrecognized symbol '%c'. Did you mean ':='? (%d)\n", ch, lineNumber);
+                    break;
+                }
+            case '&': advance(); return T_AND;
+            case '|': advance(); return T_OR;
+            case ';': advance(); return T_SEMI;
+            case '+': advance(); return T_PLUS;
+            case '*': advance(); return T_MULT;
+            case '/': advance(); return T_DIV;
+            case '\\': advance(); return T_MOD;
+            case '(': advance(); return T_LPAREN;
+            case ')': advance(); return T_RPAREN;
+            case '~': advance(); return T_NOT;
+            case ',': advance(); return T_COMMA;
+            case '.': advance(); return T_POINT;
+            case '\0': advance(); return T_EOF;
+            default:
+                if (isDigit()) {
+                    while (isDigit()) {
+                        advance();
                     }
-                    nameLen++;
+                    return T_NUM;
+                } else if (isAlpha()) {
+                    char nameStr[NAME_LEN+1];
+                    int nameLen = 0;
+                    while (isAlpha() || isDigit()) {
+                        if (nameLen < NAME_LEN) { 
+                            nameStr[nameLen] = ch;
+                        }
+                        nameLen++;
+                        advance();
+                    }
+                    return getSymbolType(nameStr, nameLen);
+                } else {
+                    lexError = true;
+                    printf("Unrecognized symbol '%d'.(%d)\n", ch, lineNumber);
                     advance();
+                    break;
                 }
-                return getSymbolType(nameStr, nameLen);
-            } else {
-                //ERROR
-                break;
-            }
+        }
     }
 }

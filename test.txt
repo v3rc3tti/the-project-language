@@ -1,0 +1,4 @@
+begin end const skip array proc read write call
+if fi do od [ ] = < > [] -> := & | ; - + * / \ ( )
+~ , . $ false true Integer Boolean
+1234569 aAZz

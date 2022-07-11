@@ -1,6 +1,8 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+#include <stdbool.h>
+
 typedef enum {
     T_BEGIN=1, // 'begin'
     T_END,     // 'end'
@@ -45,6 +47,8 @@ typedef enum {
     T_NAME,
     T_EOF      // End of input
 } SymbolType;
+
+extern bool lexError;
 
 void initScan(char *str);
 SymbolType scanNext();
