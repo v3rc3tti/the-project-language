@@ -35,10 +35,113 @@ static bool check(int count, ...) {
 }
 
 static void parseBlock();
- 
+
+/* Factor -> Constant | VariableAccess | "(" Expression ")" | "~" Factor */
+static void parseFactor() {
+    
+}
+
+/* MultiplyingOperator -> "*" | "/" | "\" */
+static void parseMultiplyingOperator() {
+    if (sym == T_MULT) {
+        expect(T_MULT);
+    } else if (sym == T_DIV) {
+        expect(T_DIV);
+    } else if (sym == T_MOD) {
+        expect(T_MOD);
+    } else {
+        //TODO: Error
+    }
+}
+
+/* Term -> Factor { MultiplyingOperator Factor } */
+static void parseTerm() {
+    parseFactor();
+    while (check(3, T_MULT, T_DIV, T_MOD)) {
+        parseMultiplyingOperator();
+        parseFactor();
+    }
+}
+
+/* AddingOperator -> "+" | "-" */
+static void parseAddingOperator() {
+    if (sym == T_PLUS) {
+        expect(T_PLUS);
+    } else if (sym == T_MINUS) {
+        expect(T_MINUS);
+    } else {
+        //TODO: Error
+    }
+}
+
+/* SimpleExpression -> ["-"] Term { AddingOperator Term } */
+static void parseSimpleExpression() {
+    if (sym == T_MINUS) {
+        expect(T_MINUS);
+    }
+    parseTerm();
+    while (check(2, T_SUM, T_MINUS)) {
+        parseAddingOperator();
+        parseTerm();
+    }
+}
+
+/* RelationalOperator -> "<" | "=" | ">" */
+static void parseRelationalOperator() {
+    if (sym == T_LES) {
+        expect(T_LES);
+    } else if (sym == T_EQ) {
+        expect(T_EQ);
+    } else if (sym == T_GRE) {
+        expect(T_GRE);
+    } else {
+        //TODO: Error
+    }
+}
+
+/* PrimaryExpression -> SimpleExpression [ RelationalOperator SimpleExpression ] */
+static void parsePrimaryExpression() {
+    parseSimpleExpression();
+    if (check(3, T_LES, T_EQ, T_GRE)) {
+        parseRelationalOperator();
+        parseSimpleExpression();
+    }
+}
+
+/* PrimaryOperator -> "&" | "|" */
+static void parsePrimaryOperator() {
+    if (sym == T_AND) {
+        expect(T_AND);
+    } else if (sym == T_OR) {
+        expect(T_OR);
+    } else {
+        //TODO: Error
+    }
+}
+
+/* Expression -> PrimaryExpression { PrimaryOperator PrimaryExpression } */
+static void parseExpression() {
+    parsePrimaryExpression();
+    while (check(2, T_AND, T_OR)) {
+        parsePrimaryOperator();
+        parsePrimaryExpression();
+    }
+}
+
+/* GuardedCommand -> Expression "->" StatementPart */
+static void parseGuardedCommand() {
+    parseExpression();
+    expect(T_ARROW);
+    parseStatementPart();
+}
+
 /* GuardedCommandList -> GuardedCommand { "[]" GuardedCommand } */
 static void parseGuardedCommandList() {
-    
+    parseGuardedCommand();
+    while (sym == T_GUARD) {
+        expect(T_GUARD);
+        parseGuardedCommand();
+    }
 }
 
 /* DoStatement -> "do" GuardedCommandList "od" */
