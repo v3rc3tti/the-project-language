@@ -20,8 +20,31 @@ static void expect(SymbolType exp) {
     }
 }
 
+/* ConstantDefinition -> "const" Name "=" Constant */
+static void parseConstantDefinition() {
+    
+}
 
+/* Definition -> ConstantDefinition | VariableDefinition | ProcedureDefinition */
+static void parseDefinition() {
+    if (ch == T_CONST) {
+        parseConstantDefinition();
+    } else if (ch == T_INTEGER || ch == T_BOOLEAN) {
+        parseVariableDefinition();
+    } else if (ch == T_PROC) {
+        parseProcedureDefinition();
+    } else {
+        syntaxError = true;
+        //TODO: Print
+    }
+}
+
+/* DefinitionPart -> { Definition ";"} */
 static void parseDefinitionPart() {
+    while (ch == T_CONST || ch == T_INTEGER || ch == T_BOOLEAN || ch == T_PROC) {
+        parseDefinition();
+        expect(T_SEMI);
+    }
 }
 
 /* Block -> "begin" DefinitionPart StatementPart "end" */

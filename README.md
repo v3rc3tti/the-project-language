@@ -11,11 +11,11 @@ The Project Language grammar:
 Program -> Block "."
 Block -> "begin" DefinitionPart StatementPart "end"
 DefinitionPart -> { Definition ";"}
-Definition -> ConstantDefiniton | VariableDefinition | ProcedureDefiniton
-ConstantDefinition -> "const" ConstantName "=" Constant
+Definition -> ConstantDefinition | VariableDefinition | ProcedureDefinition
+ConstantDefinition -> "const" Name "=" Constant
 VariableDefinition -> TypeSymbol VaribleList | TypeSymbol "array" VariableList "[" Constant "]"
 TypeSymbol -> "Integer" | "Boolean"
-VariableList -> VariableName { "," VariableName }
+VariableList -> Name { "," Name }
 ProcedureDefinition -> "proc" ProcedureName Block
 StatementPart -> { Statement ";" }
 Statement -> EmptyStatement | ReadStatement | WriteStatement | AssignmentStatement | ProcedureStatement | IfStatement | DoStatement
@@ -39,48 +39,48 @@ AddingOperator -> "+" | "-"
 Term -> Factor { MultiplyingOperator Factor }
 MultiplyingOperator -> "*" | "/" | "\"
 Factor -> Constant | VariableAccess | "(" Expression ")" | "~" Factor
-VariableAccess -> VariableName [ IndexedSelector ]
+VariableAccess -> Name [ IndexedSelector ]
 IndexedSelector -> "[" Expression "]"
-Constant -> Numeral | BooleanSymbol | ConstantName
+Constant -> Numeral | BooleanSymbol | Name
 BooleanSymbol -> "false" | "true" 
 ```
 
 The First and Follow sets for nonterminals:
-| Nonterminal         | First                                  | Follow |
-|---------------------|----------------------------------------|--------|
-| BooleanSymbol       | 'false' 'true'                         |        |
-| Constant            | Number Name 'false' 'true'             |        |
-| IndexedSelector     | '\['                                   |        |
-| VariableAccess      | Name                                   |        |
-| Factor              | Number Name 'false' 'true' '(' '~'     |        |
-| MultiplyingOperator | '\*' '/' '\'                           |        |
-| Term                | Number Name 'false' 'true' '(' '~'     |        |
-| AddingOperator      | '+' '-'                                |        |
-| SimpleExpression    | '-' Number Name 'false' 'true' '(' '~' |        |
-| RelationalOperator  | '<' '=' '>'                            |        |
-| PrimaryExpression   | '-' Number Name 'false' 'true' '(' '~' |        |
-| PrimaryOperator     | '&' '\|'                                |        |
-| Expression          | '-' Number Name 'false' 'true' '(' '~' |        |
-| GuardedCommand      | '-' Number Name 'false' 'true' '(' '~' |        |
-| GuardedCommandList  | '-' Number Name 'false' 'true' '(' '~' |        |
-| DoStatement         | 'do'                                   |        |
-| IfStatement         | 'if'                                   |        |
-| ProcedureStatement  | 'call'                                 |        |
-| AssignmentStatement | Name                                   |        |
-| ExpressionList      | '-' Number Name 'false' 'true' '(' '~' |        |
-| WriteStatement      | 'write'                                |        |
-| VariableAccessList  | Name                                   |        |
-| ReadStatement       | 'read'                                 |        |
-| EmptyStatement      | 'skip'                                 |        |
-| Statement           | 'skip' 'write' Name 'call' 'if' 'do'   |        |
-| StatementPart       | e 'skip' 'write' Name 'call' 'if' 'do' |        |
-| ProcedureDefiniton  | 'proc'                                 |        |
-| VariableList        | Name                                   |        |
-| TypeSymbol          | 'Integer' 'Boolean'                    |        |
-| VariableDefinition  | 'Integer' 'Boolean'                    |        |
-| ConstantDefinition  | 'const'                                |        |
-| Definition          | 'const' 'Integer' 'Boolean' 'proc'     |        |
-| DefinitionPart      | e 'const' 'Integer' 'Boolean' 'proc'   |        |
-| Block               | 'begin'                                |        |
-| Program             | 'begin'                                |        |
+| Nonterminal         | First                                  | Follow                                                            |
+|---------------------|----------------------------------------|-------------------------------------------------------------------|
+| BooleanSymbol       | 'false' 'true'                         | '<' '=' '>' '&' '\|' ',' ';' '\->' '\]' '\)' '+' '-' '\*' '/' '\\'|
+| Constant            | Number Name 'false' 'true'             | '<' '=' '>' '&' '\|' ',' ';' '\->' '\]' '\)' '+' '-' '\*' '/' '\\'|
+| IndexedSelector     | '\['                                   | '\]'                                                              |
+| VariableAccess      | Name                                   | '<' '=' '>' '&' '\|' ',' ';' '\->' '\]' '\)' '+' '-' '\*' '/' '\\'|
+| Factor              | Number Name 'false' 'true' '(' '~'     | '<' '=' '>' '&' '\|' ',' ';' '\->' '\]' '\)' '+' '-' '\*' '/' '\\'|
+| MultiplyingOperator | '\*' '/' '\\'                          | Number Name 'false' 'true' '(' '~'                                |
+| Term                | Number Name 'false' 'true' '(' '~'     | '<' '=' '>' '&' '\|' ',' ';' '\->' '\]' '\)' '+' '-'              |
+| AddingOperator      | '+' '-'                                | Number Name 'false' 'true' '(' '~'                                |
+| SimpleExpression    | '-' Number Name 'false' 'true' '(' '~' | '<' '=' '>' '&' '\|' ',' ';' '\->' '\]' '\)'                      |
+| RelationalOperator  | '<' '=' '>'                            | '-' Number Name 'false' 'true' '(' '~'                            |
+| PrimaryExpression   | '-' Number Name 'false' 'true' '(' '~' | '&' '\|' ',' ';' '\->' '\]' '\)'                                  |
+| PrimaryOperator     | '&' '\|'                               | '-' Number Name 'false' 'true' '(' '~'                            |
+| Expression          | '-' Number Name 'false' 'true' '(' '~' | ',' ';' '\->' '\]' '\)'                                           |
+| GuardedCommand      | '-' Number Name 'false' 'true' '(' '~' | '\[\]' 'fi' 'od'                                                  |
+| GuardedCommandList  | '-' Number Name 'false' 'true' '(' '~' | 'fi' 'od'                                                         |
+| DoStatement         | 'do'                                   | ';'                                                               |
+| IfStatement         | 'if'                                   | ';'                                                               |
+| ProcedureStatement  | 'call'                                 | ';'                                                               |
+| AssignmentStatement | Name                                   | ';'                                                               |
+| ExpressionList      | '-' Number Name 'false' 'true' '(' '~' | ';'                                                               |
+| WriteStatement      | 'write'                                | ';'                                                               |
+| VariableAccessList  | Name                                   | ';' ':='                                                          |
+| ReadStatement       | 'read'                                 | ';'                                                               |
+| EmptyStatement      | 'skip'                                 | ';'                                                               |
+| Statement           | 'skip' 'write' Name 'call' 'if' 'do'   | ';'                                                               |
+| StatementPart       | e 'skip' 'write' Name 'call' 'if' 'do' | 'end' '\[\]' 'fi' 'od'                                            |
+| ProcedureDefinition | 'proc'                                 | ';'                                                               |
+| VariableList        | Name                                   | '\['                                                              |
+| TypeSymbol          | 'Integer' 'Boolean'                    | 'array' Name                                                      |
+| VariableDefinition  | 'Integer' 'Boolean'                    | ';'                                                               |
+| ConstantDefinition  | 'const'                                | ';'                                                               |
+| Definition          | 'const' 'Integer' 'Boolean' 'proc'     | ';'                                                               |
+| DefinitionPart      | e 'const' 'Integer' 'Boolean' 'proc'   | 'end' 'skip' 'write' Name 'call' 'if' 'do'                        |
+| Block               | 'begin'                                | '.' ';'                                                           |
+| Program             | 'begin'                                | EOF                                                               |
 
