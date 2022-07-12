@@ -13,10 +13,10 @@ Block -> "begin" DefinitionPart StatementPart "end"
 DefinitionPart -> { Definition ";"}
 Definition -> ConstantDefinition | VariableDefinition | ProcedureDefinition
 ConstantDefinition -> "const" Name "=" Constant
-VariableDefinition -> TypeSymbol VaribleList | TypeSymbol "array" VariableList "[" Constant "]"
+VariableDefinition -> TypeSymbol ( VariableList | "array" VariableList "[" Constant "]" )
 TypeSymbol -> "Integer" | "Boolean"
 VariableList -> Name { "," Name }
-ProcedureDefinition -> "proc" ProcedureName Block
+ProcedureDefinition -> "proc" Name Block
 StatementPart -> { Statement ";" }
 Statement -> EmptyStatement | ReadStatement | WriteStatement | AssignmentStatement | ProcedureStatement | IfStatement | DoStatement
 EmptyStatement -> "skip"
@@ -25,7 +25,7 @@ VariableAccessList -> VariableAccess { "," VariableAccess }
 WriteStatement -> "write" ExpressionList
 ExpressionList -> Expression { "," Expression }
 AssignmentStatement -> VariableAccessList ":=" ExpressionList
-ProcedureStatement -> "call" ProcedureName
+ProcedureStatement -> "call" Name
 IfStatement -> "if" GuardedCommandList "fi"
 DoStatement -> "do" GuardedCommandList "od"
 GuardedCommandList -> GuardedCommand { "[]" GuardedCommand }
@@ -75,7 +75,7 @@ The First and Follow sets for nonterminals:
 | Statement           | 'skip' 'write' Name 'call' 'if' 'do'   | ';'                                                               |
 | StatementPart       | e 'skip' 'write' Name 'call' 'if' 'do' | 'end' '\[\]' 'fi' 'od'                                            |
 | ProcedureDefinition | 'proc'                                 | ';'                                                               |
-| VariableList        | Name                                   | '\['                                                              |
+| VariableList        | Name                                   | '\[' ';'                                                          |
 | TypeSymbol          | 'Integer' 'Boolean'                    | 'array' Name                                                      |
 | VariableDefinition  | 'Integer' 'Boolean'                    | ';'                                                               |
 | ConstantDefinition  | 'const'                                | ';'                                                               |

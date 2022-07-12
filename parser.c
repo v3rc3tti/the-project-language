@@ -20,18 +20,176 @@ static void expect(SymbolType exp) {
     }
 }
 
+/* Returns true if the input symbol has any of passed types */
+static bool check(int count, ...) {
+    va_list types;
+    va_start(types, count);
+    for (int i = 0; i < count; i++) {
+        SymbolType type = va_arg(types, SymbolType);
+        if (sym == type) {
+            return true;
+        }
+    }
+    va_end(types);
+    return false;
+}
+
+static void parseBlock();
+ 
+/* GuardedCommandList -> GuardedCommand { "[]" GuardedCommand } */
+static void parseGuardedCommandList() {
+    
+}
+
+/* DoStatement -> "do" GuardedCommandList "od" */
+static void parseDoStatement() {
+    expect(T_DO);
+    parseGuardedCommandList();
+    expect(T_OD);
+}
+
+/* IfStatement -> "if" GuardedCommandList "fi" */
+static void parseIfStatement() {
+    expect(T_IF);
+    parseGuardedCommandList();
+    expect(T_FI);
+}
+
+/* ProcedureStatement -> "call" Name */
+static void parseProcedureStatement() {
+    expect(T_CALL);
+    parseName();
+}
+
+/* AssignmentStatement -> VariableAccessList ":=" ExpressionList */
+static void parseAssignmentStatement() {
+    parseVariableAccessList();
+    expect(T_ASSIGN);
+    parseExpressionList();
+}
+
+/* ExpressionList -> Expression { "," Expression } */
+static void parseExpressionList() {
+    parseExpression();
+    while (sym == T_COMMA) {
+        expect(T_COMMA);
+        parseExpression();
+    }
+}
+
+/* WriteStatement -> "write" ExpressionList */
+static void parseWriteStatement() {
+    expect(T_WRITE);
+    parseExpressionList();
+}
+
+/* VariableAccessList -> VariableAccess { "," VariableAccess } */
+static void parseVariableAccessList() {
+    parseVariableAccess();
+    while (sym == T_COMMA) {
+        expect(T_COMMA);
+        parseVariableAccess();
+    }
+}
+
+/* ReadStatement -> "read" VariableAccessList */
+static void parseReadStatement() {
+    expect(T_READ);
+    parseVariableAccessList();
+}
+
+/* EmptyStatement -> "skip" */
+static void parseEmptyStatement() {
+    expect(T_SKIP);
+}
+
+/* Statement -> EmptyStatement | ReadStatement | WriteStatement | AssignmentStatement | ProcedureStatement | IfStatement | DoStatement */
+static void parseStatement() {
+    if (sym == T_SKIP) {
+        parseEmptyStatement();
+    } else if (sym == T_READ) {
+        parseReadStatement();
+    } else if (sym == T_WRITE) {
+        parseWriteStatement();
+    } else if (sym == T_NAME) {
+        parseAssignmentStatement();
+    } else if (sym == T_CALL) {
+        parseProcedureStatement();
+    } else if (sym == T_IF) {
+        parseIfStatement();
+    } else if (sym == T_DO) {
+        parseDoStatement();
+    } else {
+        //TODO: Error
+    }
+}
+
+/* StatementPart -> { Statement ";" } */
+static void parseStatementPart() {
+    while (check(6, T_SKIP, T_WRITE, T_NAME, T_CALL, T_IF, T_DO)) {
+        parseStatement();
+        expect(T_SEMI);
+    }
+}
+
+/* ProcedureDefinition -> "proc" Name Block */
+static void parseProcedureDefinition() {
+    expect(T_PROC);
+    parseName();
+    parseBlock();
+}
+
+/* VariableList -> Name { "," Name } */
+static void parseVariableList() {
+    parseName();
+    while (sym == T_COMMA) {
+        expect(T_COMMA);
+        parseName();
+    }
+}
+
+/* TypeSymbol -> "Integer" | "Boolean" */
+static void parseTypeSymbol() {
+    if (sym == T_INTEGER) {
+        expect(T_INTEGER);
+    } else if (sym == T_BOOLEAN) {
+        expect(T_BOOLEAN);
+    } else {
+        //TODO: Error
+    }
+}
+
+/* VariableDefinition -> TypeSymbol ( VariableList | "array" VariableList "[" Constant "]" ) */
+static void parseVariableDefinition() {
+    parseTypeSymbol();
+    if (sym == T_ARRAY) {
+        expect(T_ARRAY);
+        parseVariableList();
+        expect(T_LSQUAR);
+        parseConstant();
+        expect(T_RSQUAR);
+    } else if (sym == T_NAME) {
+        parseVariableList();
+    } else {
+        //TODO: Error
+    }
+}
+
 /* ConstantDefinition -> "const" Name "=" Constant */
 static void parseConstantDefinition() {
-    
+    expect(T_CONST);
+    parseName();
+    expect(T_EQ);
+    parseConstant();
 }
 
 /* Definition -> ConstantDefinition | VariableDefinition | ProcedureDefinition */
 static void parseDefinition() {
-    if (ch == T_CONST) {
+    if (sym == T_CONST) {
         parseConstantDefinition();
-    } else if (ch == T_INTEGER || ch == T_BOOLEAN) {
+    } else if (check(2, T_INTEGER, T_BOOLEAN)) {
         parseVariableDefinition();
-    } else if (ch == T_PROC) {
+    } else if (sym == T_PROC) {
         parseProcedureDefinition();
     } else {
         syntaxError = true;
@@ -41,7 +199,7 @@ static void parseDefinition() {
 
 /* DefinitionPart -> { Definition ";"} */
 static void parseDefinitionPart() {
-    while (ch == T_CONST || ch == T_INTEGER || ch == T_BOOLEAN || ch == T_PROC) {
+    while (check(4, T_CONST, T_INTEGER, T_BOOLEAN, T_PROC)) {
         parseDefinition();
         expect(T_SEMI);
     }
