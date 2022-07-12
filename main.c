@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "scanner.h"
+#include "parser.h"
 
 int main(int argc, char* argv[]) {
     if (argc >= 2) {
@@ -13,12 +14,13 @@ int main(int argc, char* argv[]) {
         fclose(f);
 
         initScan(src);
-        SymbolType type = scanNext();
+        /*SymbolType type = scanNext();
         while (type != T_EOF) {
             printf("%d ", type);
             type = scanNext();
         }
-        putchar('\n');
+        putchar('\n');*/
+        parse();
     } else {
         printf("Usage: %s <source file> [log file]\n", argv[0]);
     }

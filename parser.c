@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdarg.h>
 #include "parser.h"
 #include "scanner.h"
 
@@ -35,10 +36,72 @@ static bool check(int count, ...) {
 }
 
 static void parseBlock();
+static void parseExpression();
+static void parseExpressionList();
+static void parseVariableAccessList();
+static void parseStatementPart();
 
-/* Factor -> Constant | VariableAccess | "(" Expression ")" | "~" Factor */
+static void parseName() {
+    expect(T_NAME);
+}
+
+/* BooleanSymbol -> "false" | "true" */
+static void parseBooleanSymbol() {
+    if (sym == T_TRUE) {
+        expect(T_TRUE);
+    } else if (sym == T_FALSE) {
+        expect(T_FALSE);
+    } else {
+        //TODO: Error
+    }
+}
+
+/* Constant -> Numeral | BooleanSymbol | Name */
+static void parseConstant() {
+    if (sym == T_NUM) {
+        expect(T_NUM);
+    } else if (check(2, T_TRUE, T_FALSE)) {
+        parseBooleanSymbol();
+    } else if (sym == T_NAME) {
+        parseName();
+    } else {
+        //TODO: Error
+    }
+}
+
+/* IndexedSelector -> "[" Expression "]" */
+static void parseIndexedSelector() {
+    expect(T_LSQUAR);
+    parseExpression();
+    expect(T_RSQUAR);
+}
+
+/* VariableAccess -> Name [ IndexedSelector ] */
+static void parseVariableAccess() {
+    parseName();
+    if (sym == T_LSQUAR) {
+        parseIndexedSelector();
+    }
+}
+
+/* Factor -> Numeral | BooleanSymbol | VariableAccess | "(" Expression ")" | "~" Factor */
 static void parseFactor() {
-    
+    if (sym == T_NUM) {
+        expect(T_NUM);
+    } else if (check(2, T_TRUE, T_FALSE)) {
+        parseBooleanSymbol();
+    } else if (sym == T_NAME) {
+        parseVariableAccess();
+    } else if (sym == T_LPAREN) {
+        expect(T_LPAREN);
+        parseExpression();
+        expect(T_RPAREN);
+    } else if (sym == T_NOT) {
+        expect(T_NOT);
+        parseFactor();
+    } else {
+        //TODO: Error
+    }
 }
 
 /* MultiplyingOperator -> "*" | "/" | "\" */
@@ -80,7 +143,7 @@ static void parseSimpleExpression() {
         expect(T_MINUS);
     }
     parseTerm();
-    while (check(2, T_SUM, T_MINUS)) {
+    while (check(2, T_PLUS, T_MINUS)) {
         parseAddingOperator();
         parseTerm();
     }
@@ -229,7 +292,7 @@ static void parseStatement() {
 
 /* StatementPart -> { Statement ";" } */
 static void parseStatementPart() {
-    while (check(6, T_SKIP, T_WRITE, T_NAME, T_CALL, T_IF, T_DO)) {
+    while (check(7, T_SKIP, T_WRITE, T_READ, T_NAME, T_CALL, T_IF, T_DO)) {
         parseStatement();
         expect(T_SEMI);
     }
@@ -312,7 +375,7 @@ static void parseDefinitionPart() {
 static void parseBlock() {
     expect(T_BEGIN);
     parseDefinitionPart();
-    parseStatmentPart();
+    parseStatementPart();
     expect(T_END);
 }
 
@@ -324,7 +387,7 @@ static void parseProgram() {
 
 bool parse() {
     syntaxError = false;
-    nextSym();
+    next();
     parseProgram();
     expect(T_EOF);
     return !lexError && !syntaxError;
