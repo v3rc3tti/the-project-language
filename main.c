@@ -20,7 +20,11 @@ int main(int argc, char* argv[]) {
             type = scanNext();
         }
         putchar('\n');*/
-        parse();
+        if (parse()) {
+            puts("Success");
+        } else {
+            puts("Fail");
+        }
     } else {
         printf("Usage: %s <source file> [log file]\n", argv[0]);
     }

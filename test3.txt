@@ -1,0 +1,36 @@
+begin
+    const ten = 10;
+    const copyTen = one;
+    const copyT = true;
+    const copyF = false;
+    Integer intOne, intTwo;
+    Boolean array before, after[ten];
+    
+    proc testProc
+    begin
+        Integer copyTen, artTen;
+        
+        skip;
+        read before[1+1], after[2*1];
+        write before[1+1], after[2*1];
+        intOne, intTwo := ten, copyTen;
+        copyTen, artTen := (10*ten)/10, 210\200;
+        before[1], after[1] := ~(true & false), true|false;
+        if
+            copyF -> write 42;[]
+            copyT -> write 43;
+        fi;
+        do
+            copyTen > 0 ->
+                write 42;
+                copyTen := copyTen - 1;
+                []
+            copyTen = 0 ->
+                write 43;
+                copyTen := -1;
+        od;
+    end;
+    
+    $StatementPart
+    call testProc;
+end.
