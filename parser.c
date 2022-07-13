@@ -6,17 +6,66 @@
 static bool syntaxError;
 static SymbolType sym;
 
+typedef struct {
+    bool arr[T_COUNT];
+} SymSet;
+
+static SymSet endSet;
+static SymSet defFirst;
+static SymSet stmtFirst;
+static SymSet constFirst;
+
+static bool inSet(SymSet set, Symbol sym) {
+    return set.arr[sym];
+}
+
+static SymSet newSet(SymSet parent, int count, ...) {
+    SymSet set = parent;
+    if (count > 0) {
+        va_list args;
+        va_start(args, count);
+        while (count--) {
+            SymbolType type = va_arg(args, SymbolType);
+            set.arr[type] = true;
+        }
+        va_end(args);
+    }
+    return set;
+}
+
+static SymSet unionSet(SymSet a, SymSet b) {
+    SymSet set = a;
+    for (int i = 0; i < T_COUNT; i++) {
+        set.arr[i] |= b.arr[i];
+    }
+    return set;
+}
+
 static void next() {
     if (sym != T_EOF) {
         sym = scanNext();
     }
 }
 
-static void expect(SymbolType exp) {
+static void skipUntil(SymSet stop) {
+    //TODO: Print expected
+    if (!inSet(stop, sym)) {
+        markError(stop);
+    }
+}
+
+static void markError(SymSet stop) {
+    syntaxError = true;
+    while (!inSet(stop, sym)) {
+        next();
+    }
+}
+
+static void expect(SymbolType exp, SymSet stop) {
     if (sym == exp) {
         next();
     } else {
-        syntaxError = true;
+        markError(stop);
         printf("Expected %d but found %d\n", exp, sym);
     }
 }
@@ -52,7 +101,7 @@ static void parseBooleanSymbol() {
     } else if (sym == T_FALSE) {
         expect(T_FALSE);
     } else {
-        //TODO: Error
+        markError();
     }
 }
 
@@ -65,7 +114,7 @@ static void parseConstant() {
     } else if (sym == T_NAME) {
         parseName();
     } else {
-        //TODO: Error
+        markError();
     }
 }
 
@@ -100,7 +149,7 @@ static void parseFactor() {
         expect(T_NOT);
         parseFactor();
     } else {
-        //TODO: Error
+        markError();
     }
 }
 
@@ -113,7 +162,7 @@ static void parseMultiplyingOperator() {
     } else if (sym == T_MOD) {
         expect(T_MOD);
     } else {
-        //TODO: Error
+        markError();
     }
 }
 
@@ -133,7 +182,7 @@ static void parseAddingOperator() {
     } else if (sym == T_MINUS) {
         expect(T_MINUS);
     } else {
-        //TODO: Error
+        markError();
     }
 }
 
@@ -158,7 +207,7 @@ static void parseRelationalOperator() {
     } else if (sym == T_GRE) {
         expect(T_GRE);
     } else {
-        //TODO: Error
+        markError();
     }
 }
 
@@ -178,7 +227,7 @@ static void parsePrimaryOperator() {
     } else if (sym == T_OR) {
         expect(T_OR);
     } else {
-        //TODO: Error
+        markError();
     }
 }
 
@@ -250,145 +299,181 @@ static void parseWriteStatement() {
 }
 
 /* VariableAccessList -> VariableAccess { "," VariableAccess } */
-static void parseVariableAccessList() {
-    parseVariableAccess();
+static void parseVariableAccessList(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_COMMA);
+    SymSet stop2 = newSet(stop1, 1, T_NAME);
+    
+    parseVariableAccess(stop1);
     while (sym == T_COMMA) {
-        expect(T_COMMA);
-        parseVariableAccess();
+        expect(T_COMMA, stop2);
+        parseVariableAccess(stop1);
     }
 }
 
 /* ReadStatement -> "read" VariableAccessList */
-static void parseReadStatement() {
-    expect(T_READ);
-    parseVariableAccessList();
+static void parseReadStatement(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_NAME);
+    
+    expect(T_READ, stop1);
+    parseVariableAccessList(stop);
 }
 
 /* EmptyStatement -> "skip" */
-static void parseEmptyStatement() {
-    expect(T_SKIP);
+static void parseEmptyStatement(SymSet stop) {
+    expect(T_SKIP, stop);
 }
 
 /* Statement -> EmptyStatement | ReadStatement | WriteStatement | AssignmentStatement | ProcedureStatement | IfStatement | DoStatement */
-static void parseStatement() {
+static void parseStatement(SymSet stop) {
     if (sym == T_SKIP) {
-        parseEmptyStatement();
+        parseEmptyStatement(stop);
     } else if (sym == T_READ) {
-        parseReadStatement();
+        parseReadStatement(stop);
     } else if (sym == T_WRITE) {
-        parseWriteStatement();
+        parseWriteStatement(stop);
     } else if (sym == T_NAME) {
-        parseAssignmentStatement();
+        parseAssignmentStatement(stop);
     } else if (sym == T_CALL) {
-        parseProcedureStatement();
+        parseProcedureStatement(stop);
     } else if (sym == T_IF) {
-        parseIfStatement();
+        parseIfStatement(stop);
     } else if (sym == T_DO) {
-        parseDoStatement();
+        parseDoStatement(stop);
     } else {
-        //TODO: Error
+        markError(stop);
     }
 }
 
 /* StatementPart -> { Statement ";" } */
-static void parseStatementPart() {
-    while (check(7, T_SKIP, T_WRITE, T_READ, T_NAME, T_CALL, T_IF, T_DO)) {
-        parseStatement();
-        expect(T_SEMI);
+static void parseStatementPart(SymSet stop) {
+    SymSet stop1 = unionSet(stop, stmtFirst);
+    SymSet stop2 = newSet(stop1, 1, T_SEMI);
+    
+    skipUntil(stop1);
+    while (inSet(stmtFirst, sym)) {
+        parseStatement(stop2);
+        expect(T_SEMI, stop1);
     }
 }
 
 /* ProcedureDefinition -> "proc" Name Block */
-static void parseProcedureDefinition() {
-    expect(T_PROC);
-    parseName();
-    parseBlock();
+static void parseProcedureDefinition(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_BEGIN);
+    SymSet stop2 = newSet(stop1, 1, T_NAME);
+    
+    expect(T_PROC, stop2);
+    parseName(stop1);
+    parseBlock(stop);
 }
 
 /* VariableList -> Name { "," Name } */
-static void parseVariableList() {
-    parseName();
+static void parseVariableList(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_COMMA);
+    SymSet stop2 = newSet(stop1, 1, T_NAME);
+    
+    parseName(stop1);
     while (sym == T_COMMA) {
-        expect(T_COMMA);
-        parseName();
+        expect(T_COMMA, stop2);
+        parseName(stop1);
     }
 }
 
 /* TypeSymbol -> "Integer" | "Boolean" */
-static void parseTypeSymbol() {
+static void parseTypeSymbol(SymSet stop) {
     if (sym == T_INTEGER) {
-        expect(T_INTEGER);
+        expect(T_INTEGER, stop);
     } else if (sym == T_BOOLEAN) {
-        expect(T_BOOLEAN);
+        expect(T_BOOLEAN, stop);
     } else {
-        //TODO: Error
+        markError(stop);
     }
 }
 
 /* VariableDefinition -> TypeSymbol ( VariableList | "array" VariableList "[" Constant "]" ) */
-static void parseVariableDefinition() {
-    parseTypeSymbol();
+static void parseVariableDefinition(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_RSQUAR);
+    SymSet stop2 = unionSet(stop1, constFirst);
+    SymSet stop3 = newSet(stop2, 1, T_LSQUAR);
+    SymSet stop4 = newSet(stop, 2, T_ARRAY, T_NAME);
+    
+    parseTypeSymbol(stop4);
     if (sym == T_ARRAY) {
-        expect(T_ARRAY);
-        parseVariableList();
-        expect(T_LSQUAR);
-        parseConstant();
-        expect(T_RSQUAR);
+        expect(T_ARRAY, stop3);
+        parseVariableList(stop3);
+        expect(T_LSQUAR, stop2);
+        parseConstant(stop1);
+        expect(T_RSQUAR, stop);
     } else if (sym == T_NAME) {
-        parseVariableList();
+        parseVariableList(stop);
     } else {
-        //TODO: Error
+        markError(stop);
     }
 }
 
 /* ConstantDefinition -> "const" Name "=" Constant */
-static void parseConstantDefinition() {
-    expect(T_CONST);
-    parseName();
-    expect(T_EQ);
-    parseConstant();
+static void parseConstantDefinition(SymSet stop) {
+    SymSet stop1 = unionSet(stop, constFirst);
+    SymSet stop2 = newSet(stop1, 1, T_EQ);
+    
+    expect(T_CONST, stop2);
+    parseName(stop2);
+    expect(T_EQ, stop1);
+    parseConstant(stop);
 }
 
 /* Definition -> ConstantDefinition | VariableDefinition | ProcedureDefinition */
-static void parseDefinition() {
+static void parseDefinition(SymSet stop) {
     if (sym == T_CONST) {
-        parseConstantDefinition();
+        parseConstantDefinition(stop);
     } else if (check(2, T_INTEGER, T_BOOLEAN)) {
-        parseVariableDefinition();
+        parseVariableDefinition(stop);
     } else if (sym == T_PROC) {
-        parseProcedureDefinition();
+        parseProcedureDefinition(stop);
     } else {
-        syntaxError = true;
-        //TODO: Print
+        markError(stop);
     }
 }
 
 /* DefinitionPart -> { Definition ";"} */
-static void parseDefinitionPart() {
-    while (check(4, T_CONST, T_INTEGER, T_BOOLEAN, T_PROC)) {
-        parseDefinition();
-        expect(T_SEMI);
+static void parseDefinitionPart(SymSet stop) {
+    SymSet stop1 = unionSet(defFirst, stop);
+    SymSet stop2 = newSet(stop1, 1, T_SEMI);
+    
+    skipUntil(stop1);
+    while (inSet(defFirst, sym)) {
+        parseDefinition(stop2);
+        expect(T_SEMI, stop1);
     }
 }
 
 /* Block -> "begin" DefinitionPart StatementPart "end" */
-static void parseBlock() {
-    expect(T_BEGIN);
-    parseDefinitionPart();
-    parseStatementPart();
-    expect(T_END);
+static void parseBlock(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_END);
+    SymSet stop2 = unionSet(stop1, stmtFirst);
+    SymSet stop3 = unionSet(stop2, defFirst);
+    
+    expect(T_BEGIN, stop3);
+    parseDefinitionPart(stop2);
+    parseStatementPart(stop1);
+    expect(T_END, stop);
 }
 
 /* Program -> Block "." */
-static void parseProgram() {
-    parseBlock();
-    expect(T_POINT);
+static void parseProgram(SymSet stop) {
+    parseBlock(newSet(stop, 1, T_POINT));
+    expect(T_POINT, stop);
 }
 
 bool parse() {
     syntaxError = false;
+    
+    endSet = newSet({0}, 1, T_EOF);
+    defFirst = newSet(endSet, 4, T_CONST, T_INTEGER, T_BOOLEAN, T_PROC);
+    stmtFirst = newSet(endSet, 7, T_SKIP, T_WRITE, T_NAME, T_CALL, T_IF, T_DO, T_READ);
+    constFirst = newSet(endSet, 4, T_NUM, T_NAME, T_FALSE, T_TRUE);
+    
     next();
-    parseProgram();
+    parseProgram(defSet);
     expect(T_EOF);
     return !lexError && !syntaxError;
 }

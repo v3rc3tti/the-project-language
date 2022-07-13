@@ -44,7 +44,8 @@ typedef enum {
     T_BOOLEAN, // 'Boolean'
     T_NUM,
     T_NAME,
-    T_EOF      // End of input
+    T_EOF,     // End of input
+    T_COUNT
 } SymbolType;
 
 extern bool lexError;
