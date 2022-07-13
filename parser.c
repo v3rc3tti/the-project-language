@@ -59,21 +59,22 @@ static void markError(SymSet stop) {
 
 static void skipUntil(SymSet stop) {
     if (!inSet(stop, sym)) {
-        markError(stop);
-        
         printf("%d: Expected ", getLine());
         for (int i = 0; i < T_COUNT; i++) {
             if (stop.arr[i]) {
-                printf("%s ", getSymName(sym));
+                printf("%s ", getSymName(i));
             }
         }
         printf("but found %s\n", getSymName(sym));
+        
+        markError(stop);
     }
 }
 
 static void expect(SymbolType exp, SymSet stop) {
     if (sym == exp) {
         next();
+        skipUntil(stop);
     } else {
         markError(stop);
         printf("%d: Expected %s but found %s\n", getLine(), getSymName(exp), getSymName(sym));
