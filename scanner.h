@@ -52,5 +52,7 @@ extern bool lexError;
 
 void initScan(char *str);
 SymbolType scanNext();
+int getLine();
+const char *getSymName(SymbolType type);
 
 #endif

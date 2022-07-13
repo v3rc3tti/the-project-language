@@ -15,6 +15,12 @@ static char ch;
 static int lineNumber;
 static Name names[17];
 static int nameCount;
+static const char* symNames[T_COUNT] = {
+    "begin", "end", "const", "skip", "array", "proc", "read", "write", "call", "if",
+    "fi", "do", "od", "[", "]", "=", "<", ">", "[]", "->", ":=", "&", "|", ";", "-",
+    "+", "*", "/", "\\", "(", ")", "~", ",", ".", "false", "true", "Integer",
+    "Boolean", "number", "identifier", "end of file"
+};
 
 static void reserveName(const char *str, SymbolType type) {
     strncpy(names[nameCount].str, str, NAME_LEN+1);
@@ -165,4 +171,12 @@ SymbolType scanNext() {
                 }
         }
     }
+}
+
+int getLine() {
+    return lineNumber;
+}
+
+const char *getSymName(SymbolType type) {
+    return symNames[type-1];
 }

@@ -50,16 +50,24 @@ static void next() {
 }
 
 static void markError(SymSet stop) {
-    syntaxError = true;
+    syntaxError = true;  
+        
     while (!inSet(stop, sym)) {
         next();
     }
 }
 
 static void skipUntil(SymSet stop) {
-    //TODO: Print expected
     if (!inSet(stop, sym)) {
         markError(stop);
+        
+        printf("%d: Expected ", getLine());
+        for (int i = 0; i < T_COUNT; i++) {
+            if (stop.arr[i]) {
+                printf("%s ", getSymName(sym));
+            }
+        }
+        printf("but found %s\n", getSymName(sym));
     }
 }
 
@@ -68,7 +76,7 @@ static void expect(SymbolType exp, SymSet stop) {
         next();
     } else {
         markError(stop);
-        printf("Expected %d but found %d\n", exp, sym);
+        printf("%d: Expected %s but found %s\n", getLine(), getSymName(exp), getSymName(sym));
     }
 }
 
@@ -103,6 +111,7 @@ static void parseBooleanSymbol(SymSet stop) {
     } else if (sym == T_FALSE) {
         expect(T_FALSE, stop);
     } else {
+        printf("%d: Expected boolean value but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -116,6 +125,7 @@ static void parseConstant(SymSet stop) {
     } else if (sym == T_NAME) {
         parseName(stop);
     } else {
+        printf("%d: Expected constant but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -160,6 +170,8 @@ static void parseFactor(SymSet stop) {
         expect(T_NOT, stop3);
         parseFactor(stop);
     } else {
+        printf("%d: Expected number, boolean value, identifier, ( or ~ but found %s\n",
+            getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -173,6 +185,7 @@ static void parseMultiplyingOperator(SymSet stop) {
     } else if (sym == T_MOD) {
         expect(T_MOD, stop);
     } else {
+        printf("%d: Expected * / or \\ but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -196,6 +209,7 @@ static void parseAddingOperator(SymSet stop) {
     } else if (sym == T_MINUS) {
         expect(T_MINUS, stop);
     } else {
+        printf("%d: Expected + or - but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -224,6 +238,7 @@ static void parseRelationalOperator(SymSet stop) {
     } else if (sym == T_GRE) {
         expect(T_GRE, stop);
     } else {
+        printf("%d: Expected < = or > but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -247,6 +262,7 @@ static void parsePrimaryOperator(SymSet stop) {
     } else if (sym == T_OR) {
         expect(T_OR, stop);
     } else {
+        printf("%d: Expected & or | but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -385,6 +401,7 @@ static void parseStatement(SymSet stop) {
     } else if (sym == T_DO) {
         parseDoStatement(stop);
     } else {
+        printf("%d: Expected start of statement but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -430,6 +447,7 @@ static void parseTypeSymbol(SymSet stop) {
     } else if (sym == T_BOOLEAN) {
         expect(T_BOOLEAN, stop);
     } else {
+        printf("%d: Expected Integer or Boolean but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -451,6 +469,7 @@ static void parseVariableDefinition(SymSet stop) {
     } else if (sym == T_NAME) {
         parseVariableList(stop);
     } else {
+        printf("%d: Expected array or identifier but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
@@ -475,6 +494,7 @@ static void parseDefinition(SymSet stop) {
     } else if (sym == T_PROC) {
         parseProcedureDefinition(stop);
     } else {
+        printf("%d: Expected const Integer Boolean or proc but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
 }
