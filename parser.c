@@ -14,8 +14,10 @@ static SymSet endSet;
 static SymSet defFirst;
 static SymSet stmtFirst;
 static SymSet constFirst;
+static SymSet exprFirst;
+static SymSet termFirst;
 
-static bool inSet(SymSet set, Symbol sym) {
+static bool inSet(SymSet set, SymbolType sym) {
     return set.arr[sym];
 }
 
@@ -47,17 +49,17 @@ static void next() {
     }
 }
 
-static void skipUntil(SymSet stop) {
-    //TODO: Print expected
-    if (!inSet(stop, sym)) {
-        markError(stop);
-    }
-}
-
 static void markError(SymSet stop) {
     syntaxError = true;
     while (!inSet(stop, sym)) {
         next();
+    }
+}
+
+static void skipUntil(SymSet stop) {
+    //TODO: Print expected
+    if (!inSet(stop, sym)) {
+        markError(stop);
     }
 }
 
@@ -90,212 +92,255 @@ static void parseExpressionList();
 static void parseVariableAccessList();
 static void parseStatementPart();
 
-static void parseName() {
-    expect(T_NAME);
+static void parseName(SymSet stop) {
+    expect(T_NAME, stop);
 }
 
 /* BooleanSymbol -> "false" | "true" */
-static void parseBooleanSymbol() {
+static void parseBooleanSymbol(SymSet stop) {
     if (sym == T_TRUE) {
-        expect(T_TRUE);
+        expect(T_TRUE, stop);
     } else if (sym == T_FALSE) {
-        expect(T_FALSE);
+        expect(T_FALSE, stop);
     } else {
-        markError();
+        markError(stop);
     }
 }
 
 /* Constant -> Numeral | BooleanSymbol | Name */
-static void parseConstant() {
+static void parseConstant(SymSet stop) {
     if (sym == T_NUM) {
-        expect(T_NUM);
+        expect(T_NUM, stop);
     } else if (check(2, T_TRUE, T_FALSE)) {
-        parseBooleanSymbol();
+        parseBooleanSymbol(stop);
     } else if (sym == T_NAME) {
-        parseName();
+        parseName(stop);
     } else {
-        markError();
+        markError(stop);
     }
 }
 
 /* IndexedSelector -> "[" Expression "]" */
-static void parseIndexedSelector() {
-    expect(T_LSQUAR);
-    parseExpression();
-    expect(T_RSQUAR);
+static void parseIndexedSelector(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_RSQUAR);
+    SymSet stop2 = unionSet(stop, exprFirst);
+    
+    expect(T_LSQUAR, stop2);
+    parseExpression(stop1);
+    expect(T_RSQUAR, stop);
 }
 
 /* VariableAccess -> Name [ IndexedSelector ] */
-static void parseVariableAccess() {
-    parseName();
+static void parseVariableAccess(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_LSQUAR);
+    
+    parseName(stop1);
     if (sym == T_LSQUAR) {
-        parseIndexedSelector();
+        parseIndexedSelector(stop);
     }
 }
 
 /* Factor -> Numeral | BooleanSymbol | VariableAccess | "(" Expression ")" | "~" Factor */
-static void parseFactor() {
+static void parseFactor(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_RPAREN);
+    SymSet stop2 = unionSet(stop1, exprFirst);
+    SymSet stop3 = unionSet(stop, termFirst);
+    
     if (sym == T_NUM) {
-        expect(T_NUM);
+        expect(T_NUM, stop);
     } else if (check(2, T_TRUE, T_FALSE)) {
-        parseBooleanSymbol();
+        parseBooleanSymbol(stop);
     } else if (sym == T_NAME) {
-        parseVariableAccess();
+        parseVariableAccess(stop);
     } else if (sym == T_LPAREN) {
-        expect(T_LPAREN);
-        parseExpression();
-        expect(T_RPAREN);
+        expect(T_LPAREN, stop2);
+        parseExpression(stop1);
+        expect(T_RPAREN, stop);
     } else if (sym == T_NOT) {
-        expect(T_NOT);
-        parseFactor();
+        expect(T_NOT, stop3);
+        parseFactor(stop);
     } else {
-        markError();
+        markError(stop);
     }
 }
 
 /* MultiplyingOperator -> "*" | "/" | "\" */
-static void parseMultiplyingOperator() {
+static void parseMultiplyingOperator(SymSet stop) {
     if (sym == T_MULT) {
-        expect(T_MULT);
+        expect(T_MULT, stop);
     } else if (sym == T_DIV) {
-        expect(T_DIV);
+        expect(T_DIV, stop);
     } else if (sym == T_MOD) {
-        expect(T_MOD);
+        expect(T_MOD, stop);
     } else {
-        markError();
+        markError(stop);
     }
 }
 
 /* Term -> Factor { MultiplyingOperator Factor } */
-static void parseTerm() {
-    parseFactor();
+static void parseTerm(SymSet stop) {
+    SymSet stop1 = newSet(stop, 3, T_MULT, T_DIV, T_MOD);
+    SymSet stop2 = unionSet(stop1, termFirst);
+    
+    parseFactor(stop1);
     while (check(3, T_MULT, T_DIV, T_MOD)) {
-        parseMultiplyingOperator();
-        parseFactor();
+        parseMultiplyingOperator(stop2);
+        parseFactor(stop1);
     }
 }
 
 /* AddingOperator -> "+" | "-" */
-static void parseAddingOperator() {
+static void parseAddingOperator(SymSet stop) {
     if (sym == T_PLUS) {
-        expect(T_PLUS);
+        expect(T_PLUS, stop);
     } else if (sym == T_MINUS) {
-        expect(T_MINUS);
+        expect(T_MINUS, stop);
     } else {
-        markError();
+        markError(stop);
     }
 }
 
 /* SimpleExpression -> ["-"] Term { AddingOperator Term } */
-static void parseSimpleExpression() {
+static void parseSimpleExpression(SymSet stop) {
+    SymSet stop1 = newSet(stop, 2, T_PLUS, T_MINUS);
+    SymSet stop2 = unionSet(stop1, termFirst);
+    
     if (sym == T_MINUS) {
-        expect(T_MINUS);
+        expect(T_MINUS, stop2);
     }
-    parseTerm();
+    parseTerm(stop1);
     while (check(2, T_PLUS, T_MINUS)) {
-        parseAddingOperator();
-        parseTerm();
+        parseAddingOperator(stop2);
+        parseTerm(stop1);
     }
 }
 
 /* RelationalOperator -> "<" | "=" | ">" */
-static void parseRelationalOperator() {
+static void parseRelationalOperator(SymSet stop) {
     if (sym == T_LES) {
-        expect(T_LES);
+        expect(T_LES, stop);
     } else if (sym == T_EQ) {
-        expect(T_EQ);
+        expect(T_EQ, stop);
     } else if (sym == T_GRE) {
-        expect(T_GRE);
+        expect(T_GRE, stop);
     } else {
-        markError();
+        markError(stop);
     }
 }
 
 /* PrimaryExpression -> SimpleExpression [ RelationalOperator SimpleExpression ] */
-static void parsePrimaryExpression() {
-    parseSimpleExpression();
+static void parsePrimaryExpression(SymSet stop) {
+    SymSet stop1 = newSet(stop, 3, T_LES, T_EQ, T_GRE);
+    SymSet stop2 = unionSet(stop1, exprFirst);
+    
+    parseSimpleExpression(stop1);
     if (check(3, T_LES, T_EQ, T_GRE)) {
-        parseRelationalOperator();
-        parseSimpleExpression();
+        parseRelationalOperator(stop2);
+        parseSimpleExpression(stop1);
     }
 }
 
 /* PrimaryOperator -> "&" | "|" */
-static void parsePrimaryOperator() {
+static void parsePrimaryOperator(SymSet stop) {
     if (sym == T_AND) {
-        expect(T_AND);
+        expect(T_AND, stop);
     } else if (sym == T_OR) {
-        expect(T_OR);
+        expect(T_OR, stop);
     } else {
-        markError();
+        markError(stop);
     }
 }
 
 /* Expression -> PrimaryExpression { PrimaryOperator PrimaryExpression } */
-static void parseExpression() {
-    parsePrimaryExpression();
+static void parseExpression(SymSet stop) {
+    SymSet stop1 = newSet(stop, 2, T_AND, T_OR);
+    SymSet stop2 = unionSet(stop1, exprFirst);
+    
+    parsePrimaryExpression(stop1);
     while (check(2, T_AND, T_OR)) {
-        parsePrimaryOperator();
-        parsePrimaryExpression();
+        parsePrimaryOperator(stop2);
+        parsePrimaryExpression(stop1);
     }
 }
 
 /* GuardedCommand -> Expression "->" StatementPart */
-static void parseGuardedCommand() {
-    parseExpression();
-    expect(T_ARROW);
-    parseStatementPart();
+static void parseGuardedCommand(SymSet stop) {
+    SymSet stop1 = unionSet(stop, stmtFirst);
+    SymSet stop2 = newSet(stop1, 1, T_ARROW);
+    
+    parseExpression(stop2);
+    expect(T_ARROW, stop1);
+    parseStatementPart(stop);
 }
 
 /* GuardedCommandList -> GuardedCommand { "[]" GuardedCommand } */
-static void parseGuardedCommandList() {
-    parseGuardedCommand();
+static void parseGuardedCommandList(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_GUARD);
+    SymSet stop2 = unionSet(stop1, exprFirst);
+    
+    parseGuardedCommand(stop1);
     while (sym == T_GUARD) {
-        expect(T_GUARD);
-        parseGuardedCommand();
+        expect(T_GUARD, stop2);
+        parseGuardedCommand(stop1);
     }
 }
 
 /* DoStatement -> "do" GuardedCommandList "od" */
-static void parseDoStatement() {
-    expect(T_DO);
-    parseGuardedCommandList();
-    expect(T_OD);
+static void parseDoStatement(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_OD);
+    SymSet stop2 = unionSet(stop1, exprFirst);
+    
+    expect(T_DO, stop2);
+    parseGuardedCommandList(stop1);
+    expect(T_OD, stop);
 }
 
 /* IfStatement -> "if" GuardedCommandList "fi" */
-static void parseIfStatement() {
-    expect(T_IF);
-    parseGuardedCommandList();
-    expect(T_FI);
+static void parseIfStatement(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_FI);
+    SymSet stop2 = unionSet(stop1, exprFirst);
+    
+    expect(T_IF, stop2);
+    parseGuardedCommandList(stop1);
+    expect(T_FI, stop);
 }
 
 /* ProcedureStatement -> "call" Name */
-static void parseProcedureStatement() {
-    expect(T_CALL);
-    parseName();
+static void parseProcedureStatement(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_NAME);
+    
+    expect(T_CALL, stop1);
+    parseName(stop);
 }
 
 /* AssignmentStatement -> VariableAccessList ":=" ExpressionList */
-static void parseAssignmentStatement() {
-    parseVariableAccessList();
-    expect(T_ASSIGN);
-    parseExpressionList();
+static void parseAssignmentStatement(SymSet stop) {
+    SymSet stop1 = unionSet(stop, exprFirst);
+    SymSet stop2 = newSet(stop1, 1, T_ASSIGN);
+    
+    parseVariableAccessList(stop2);
+    expect(T_ASSIGN, stop1);
+    parseExpressionList(stop);
 }
 
 /* ExpressionList -> Expression { "," Expression } */
-static void parseExpressionList() {
-    parseExpression();
+static void parseExpressionList(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_COMMA);
+    SymSet stop2 = unionSet(stop1, exprFirst);
+    
+    parseExpression(stop1);
     while (sym == T_COMMA) {
-        expect(T_COMMA);
-        parseExpression();
+        expect(T_COMMA, stop2);
+        parseExpression(stop1);
     }
 }
 
 /* WriteStatement -> "write" ExpressionList */
-static void parseWriteStatement() {
-    expect(T_WRITE);
-    parseExpressionList();
+static void parseWriteStatement(SymSet stop) {
+    SymSet stop1 = unionSet(stop, exprFirst);
+    
+    expect(T_WRITE, stop1);
+    parseExpressionList(stop);
 }
 
 /* VariableAccessList -> VariableAccess { "," VariableAccess } */
@@ -467,13 +512,15 @@ static void parseProgram(SymSet stop) {
 bool parse() {
     syntaxError = false;
     
-    endSet = newSet({0}, 1, T_EOF);
+    endSet = newSet((SymSet){0}, 1, T_EOF);
     defFirst = newSet(endSet, 4, T_CONST, T_INTEGER, T_BOOLEAN, T_PROC);
     stmtFirst = newSet(endSet, 7, T_SKIP, T_WRITE, T_NAME, T_CALL, T_IF, T_DO, T_READ);
     constFirst = newSet(endSet, 4, T_NUM, T_NAME, T_FALSE, T_TRUE);
+    exprFirst = newSet(endSet, 7, T_MINUS, T_NUM, T_NAME, T_FALSE, T_TRUE, T_LPAREN, T_NOT);
+    termFirst = newSet(endSet, 6, T_NUM, T_NAME, T_FALSE, T_TRUE, T_LPAREN, T_NOT);
     
     next();
-    parseProgram(defSet);
-    expect(T_EOF);
+    parseProgram(endSet);
+    //TODO: Check T_EOF
     return !lexError && !syntaxError;
 }
