@@ -1,19 +1,30 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "scanner.h"
 
 #define NAME_LEN 10
+#define STORE_LEN 4096
 
-typedef struct {
-    char str[NAME_LEN+1];
-    SymbolType type;
+typedef struct Name_ {
+    const char* spelling;
+    int index;
+    bool isReserved;
+    struct Name_ *next;
 } Name;
 
+typedef struct {
+    char *start;
+    int capacity;
+    int loaded;
+} SpellingStore;
+
+Name *nameTable;
+SpellingStore spelStore;
 bool lexError;
 
 static char *source;
 static char ch;
 static int lineNumber;
-static Name names[17];
 static int nameCount;
 static const char* symNames[T_COUNT] = {
     "begin", "end", "const", "skip", "array", "proc", "read", "write", "call", "if",
@@ -22,10 +33,37 @@ static const char* symNames[T_COUNT] = {
     "Boolean", "number", "identifier", "end of file"
 };
 
-static void reserveName(const char *str, SymbolType type) {
-    strncpy(names[nameCount].str, str, NAME_LEN+1);
-    names[nameCount].type = type;
-    nameCount++;
+static void initSpellingStore(int capacity) {
+    spelStore.start = malloc(capacity);
+    spelStore.capacity = capacity;
+    spelStore.loaded = 0;
+}
+
+static void cleanSpellingStore() {
+    free(spelStore.start);
+    spelStore.capacity = 0;
+    spelStore.loaded = 0;
+}
+
+static char *saveSpelling(const char *str) {
+    int strLen = strlen(str) + 1;
+    if (spelStore.loaded + strLen >= spelStore.capacity) {
+        //TODO: Expand memory
+    }
+    char *strStart = &spelStore.start[spelStore.loaded];
+    strcpy(strStart, str);
+    spelStore.loaded += strLen;
+    return strStart;
+}
+
+static Name *reserveName(const char *str, int index, bool isReserved) {
+    Name *newName = malloc(sizeof(Name));
+    newName->spelling = saveSpelling(str);
+    newName->index = index;
+    newName->isReserved = isReserved;
+    newName->next = nameTable;
+    nameTable = newName;
+    return nameTable;
 }
 
 static SymbolType getSymbolType(char *str, int strLen) {
@@ -33,12 +71,36 @@ static SymbolType getSymbolType(char *str, int strLen) {
         strLen = NAME_LEN;
     }
     str[strLen] = '\0';
-    for (int i = 0; i < nameCount; i++) {
-        if (!strcmp(names[i].str, str)) {
-            return names[i].type;
+    
+    Name *node = nameTable;
+    bool found = false;
+    while (node) {
+        if (!strcmp(node->spelling, str)) {
+            found = true;
+            break;
+        } else {
+            node = node->next;
         }
     }
-    return T_NAME;
+    
+    if (!found) {
+        node = reserveName(str, nameCount, false);
+        nameCount++;
+    }
+    if (node->isReserved) {
+        return node->index;
+    } else {
+        return T_NAME;
+    }
+}
+
+static void cleanNames() {
+    Name *node = nameTable;
+    while (node) {
+        Name *next = node->next;
+        free(node);
+        node = next;
+    }
 }
 
 static void advance() {
@@ -79,24 +141,31 @@ void initScan(char *str) {
     source = str;
     ch = *source;
     lineNumber = 1;
+    nameTable = NULL;
     nameCount = 0;
-    reserveName("begin", T_BEGIN);
-    reserveName("end", T_END);
-    reserveName("const", T_CONST);
-    reserveName("skip", T_SKIP);
-    reserveName("array", T_ARRAY);
-    reserveName("proc", T_PROC);
-    reserveName("read", T_READ);
-    reserveName("write", T_WRITE);
-    reserveName("call", T_CALL);
-    reserveName("if", T_IF);
-    reserveName("fi", T_FI);
-    reserveName("do", T_DO);
-    reserveName("od", T_OD);
-    reserveName("false", T_FALSE);
-    reserveName("true", T_TRUE);
-    reserveName("Integer", T_INTEGER);
-    reserveName("Boolean", T_BOOLEAN);
+    initSpellingStore(STORE_LEN);
+    reserveName("begin", T_BEGIN, true);
+    reserveName("end", T_END, true);
+    reserveName("const", T_CONST, true);
+    reserveName("skip", T_SKIP, true);
+    reserveName("array", T_ARRAY, true);
+    reserveName("proc", T_PROC, true);
+    reserveName("read", T_READ, true);
+    reserveName("write", T_WRITE, true);
+    reserveName("call", T_CALL, true);
+    reserveName("if", T_IF, true);
+    reserveName("fi", T_FI, true);
+    reserveName("do", T_DO, true);
+    reserveName("od", T_OD, true);
+    reserveName("false", T_FALSE, true);
+    reserveName("true", T_TRUE, true);
+    reserveName("Integer", T_INTEGER, true);
+    reserveName("Boolean", T_BOOLEAN, true);
+}
+
+void cleanScan() {
+    cleanNames();
+    cleanSpellingStore();
 }
 
 SymbolType scanNext() {
