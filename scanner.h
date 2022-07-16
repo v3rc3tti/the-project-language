@@ -48,11 +48,16 @@ typedef enum {
     T_COUNT
 } SymbolType;
 
+typedef struct {
+    SymbolType type;
+    int arg;
+} Symbol;
+
 extern bool lexError;
 
 void initScan(char *str);
 void cleanScan();
-SymbolType scanNext();
+Symbol scanNext();
 int getLine();
 const char *getSymName(SymbolType type);
 

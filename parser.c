@@ -5,6 +5,7 @@
 
 static bool syntaxError;
 static SymbolType sym;
+static int symArg;
 
 typedef struct {
     bool arr[T_COUNT];
@@ -45,7 +46,9 @@ static SymSet unionSet(SymSet a, SymSet b) {
 
 static void next() {
     if (sym != T_EOF) {
-        sym = scanNext();
+        Symbol s = scanNext();
+        sym = s.type;
+        symArg = s.arg;
     }
 }
 

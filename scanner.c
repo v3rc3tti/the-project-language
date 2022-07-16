@@ -19,13 +19,14 @@ typedef struct {
 } SpellingStore;
 
 Name *nameTable;
-SpellingStore spelStore;
 bool lexError;
 
 static char *source;
 static char ch;
 static int lineNumber;
 static int nameCount;
+static SpellingStore spelStore;
+
 static const char* symNames[T_COUNT] = {
     "begin", "end", "const", "skip", "array", "proc", "read", "write", "call", "if",
     "fi", "do", "od", "[", "]", "=", "<", ">", "[]", "->", ":=", "&", "|", ";", "-",
@@ -66,7 +67,7 @@ static Name *reserveName(const char *str, int index, bool isReserved) {
     return nameTable;
 }
 
-static SymbolType getSymbolType(char *str, int strLen) {
+static Symbol getSymbol(char *str, int strLen) {
     if (strLen > NAME_LEN) {
         strLen = NAME_LEN;
     }
@@ -88,9 +89,9 @@ static SymbolType getSymbolType(char *str, int strLen) {
         nameCount++;
     }
     if (node->isReserved) {
-        return node->index;
+        return (Symbol){.type = node->index};
     } else {
-        return T_NAME;
+        return (Symbol){.type = T_NAME, .arg = node->index};
     }
 }
 
@@ -168,7 +169,7 @@ void cleanScan() {
     cleanSpellingStore();
 }
 
-SymbolType scanNext() {
+Symbol scanNext() {
     while (true) {
         skipBlanks();
         switch (ch) {
@@ -176,51 +177,51 @@ SymbolType scanNext() {
                 advance();
                 if (ch == ']') {
                     advance();
-                    return T_GUARD;
+                    return (Symbol){.type=T_GUARD};
                 } else {
-                    return T_LSQUAR;
+                    return (Symbol){.type=T_LSQUAR};
                 }
-            case ']': advance(); return T_RSQUAR;
-            case '=': advance(); return T_EQ;
-            case '<': advance(); return T_LES;
-            case '>': advance(); return T_GRE;
+            case ']': advance(); return (Symbol){.type=T_RSQUAR};
+            case '=': advance(); return (Symbol){.type=T_EQ};
+            case '<': advance(); return (Symbol){.type=T_LES};
+            case '>': advance(); return (Symbol){.type=T_GRE};
             case '-':
                 advance();
                 if (ch == '>') {
                     advance();
-                    return T_ARROW;
+                    return (Symbol){.type=T_ARROW};
                 } else {
-                    return T_MINUS;
+                    return (Symbol){.type=T_MINUS};
                 }
             case ':':
                 advance();
                 if (ch == '=') {
                     advance();
-                    return T_ASSIGN;
+                    return (Symbol){.type=T_ASSIGN};
                 } else {
                     lexError = true;
                     printf("Unrecognized symbol '%c'. Did you mean ':='? (%d)\n", ch, lineNumber);
                     break;
                 }
-            case '&': advance(); return T_AND;
-            case '|': advance(); return T_OR;
-            case ';': advance(); return T_SEMI;
-            case '+': advance(); return T_PLUS;
-            case '*': advance(); return T_MULT;
-            case '/': advance(); return T_DIV;
-            case '\\': advance(); return T_MOD;
-            case '(': advance(); return T_LPAREN;
-            case ')': advance(); return T_RPAREN;
-            case '~': advance(); return T_NOT;
-            case ',': advance(); return T_COMMA;
-            case '.': advance(); return T_POINT;
-            case '\0': advance(); return T_EOF;
+            case '&': advance(); return (Symbol){.type=T_AND};
+            case '|': advance(); return (Symbol){.type=T_OR};
+            case ';': advance(); return (Symbol){.type=T_SEMI};
+            case '+': advance(); return (Symbol){.type=T_PLUS};
+            case '*': advance(); return (Symbol){.type=T_MULT};
+            case '/': advance(); return (Symbol){.type=T_DIV};
+            case '\\': advance(); return (Symbol){.type=T_MOD};
+            case '(': advance(); return (Symbol){.type=T_LPAREN};
+            case ')': advance(); return (Symbol){.type=T_RPAREN};
+            case '~': advance(); return (Symbol){.type=T_NOT};
+            case ',': advance(); return (Symbol){.type=T_COMMA};
+            case '.': advance(); return (Symbol){.type=T_POINT};
+            case '\0': advance(); return (Symbol){.type=T_EOF};
             default:
                 if (isDigit()) {
                     while (isDigit()) {
                         advance();
                     }
-                    return T_NUM;
+                    return (Symbol){.type=T_NUM};
                 } else if (isAlpha()) {
                     char nameStr[NAME_LEN+1];
                     int nameLen = 0;
@@ -231,7 +232,7 @@ SymbolType scanNext() {
                         nameLen++;
                         advance();
                     }
-                    return getSymbolType(nameStr, nameLen);
+                    return getSymbol(nameStr, nameLen);
                 } else {
                     lexError = true;
                     printf("Unrecognized symbol '%d'.(%d)\n", ch, lineNumber);
