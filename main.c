@@ -25,6 +25,7 @@ int main(int argc, char* argv[]) {
         } else {
             puts("Fail");
         }
+        cleanScan();
     } else {
         printf("Usage: %s <source file> [log file]\n", argv[0]);
     }
