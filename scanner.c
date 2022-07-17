@@ -250,3 +250,14 @@ int getLine() {
 const char *getSymName(SymbolType type) {
     return symNames[type-1];
 }
+
+const char *getNameSpel(int name) {
+    Name *node = nameTable;
+    while (node) {
+        if (!node->isReserved && node->index == name) {
+            return node->spelling;
+        }
+        node = node->next;
+    }
+    return NULL;
+}

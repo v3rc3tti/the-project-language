@@ -1,6 +1,6 @@
 begin
     const ten = 10;
-    const copyTen = one;
+    const copyTen = ten;
     const copyT = true;
     const copyF = false;
     Integer intOne, intTwo;

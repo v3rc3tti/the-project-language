@@ -30,7 +30,7 @@ static bool nameExists(int name, int level) {
 
 void defineName(int name) {
     if (nameExists(name, blockLevel)) {
-        printf("%d: Ambiguous definition\n", getLine());
+        printf("%d: Ambiguous definition '%s'!\n", getLine(), getNameSpel(name));
     } else {
         ObjectRecord *rec = malloc(sizeof(ObjectRecord));
         rec->name = name;
@@ -48,7 +48,7 @@ bool findName(int name) {
             lvl--;
         }
     }
-    printf("%d: Undefined name!\n", getLine());
+    printf("%d: Undefined name '%s'!\n", getLine(), getNameSpel(name));
     defineName(name);
     return false;
 }

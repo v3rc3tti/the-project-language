@@ -60,5 +60,6 @@ void cleanScan();
 Symbol scanNext();
 int getLine();
 const char *getSymName(SymbolType type);
+const char *getNameSpel(int name);
 
 #endif
