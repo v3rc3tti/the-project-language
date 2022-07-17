@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include "parser.h"
 #include "scanner.h"
+#include "scope.h"
 
 static bool syntaxError;
 static SymbolType sym;
@@ -84,6 +85,19 @@ static void expect(SymbolType exp, SymSet stop) {
     }
 }
 
+static int expectName(SymSet stop) {
+    if (sym == T_NAME) {
+        int name = symArg;
+        next();
+        skipUntil(stop);
+        return name;
+    } else {
+        markError(stop);
+        printf("%d: Expected identifier but found %s\n", getLine(), getSymName(sym));
+        return -1;
+    }
+}   
+
 /* Returns true if the input symbol has any of passed types */
 static bool check(int count, ...) {
     va_list types;
@@ -104,10 +118,6 @@ static void parseExpressionList();
 static void parseVariableAccessList();
 static void parseStatementPart();
 
-static void parseName(SymSet stop) {
-    expect(T_NAME, stop);
-}
-
 /* BooleanSymbol -> "false" | "true" */
 static void parseBooleanSymbol(SymSet stop) {
     if (sym == T_TRUE) {
@@ -127,7 +137,8 @@ static void parseConstant(SymSet stop) {
     } else if (check(2, T_TRUE, T_FALSE)) {
         parseBooleanSymbol(stop);
     } else if (sym == T_NAME) {
-        parseName(stop);
+        findName(symArg);
+        expectName(stop);
     } else {
         printf("%d: Expected constant but found %s\n", getLine(), getSymName(sym));
         markError(stop);
@@ -148,7 +159,10 @@ static void parseIndexedSelector(SymSet stop) {
 static void parseVariableAccess(SymSet stop) {
     SymSet stop1 = newSet(stop, 1, T_LSQUAR);
     
-    parseName(stop1);
+    if (sym == T_NAME) {
+        findName(symArg);
+    }
+    expectName(stop1);
     if (sym == T_LSQUAR) {
         parseIndexedSelector(stop);
     }
@@ -330,7 +344,10 @@ static void parseProcedureStatement(SymSet stop) {
     SymSet stop1 = newSet(stop, 1, T_NAME);
     
     expect(T_CALL, stop1);
-    parseName(stop);
+    if (sym == T_NAME) {
+        findName(symArg);
+    }
+    expectName(stop);
 }
 
 /* AssignmentStatement -> VariableAccessList ":=" ExpressionList */
@@ -428,7 +445,10 @@ static void parseProcedureDefinition(SymSet stop) {
     SymSet stop2 = newSet(stop1, 1, T_NAME);
     
     expect(T_PROC, stop2);
-    parseName(stop1);
+    int name = expectName(stop1);
+    if (name != -1) {
+        defineName(name);
+    }
     parseBlock(stop);
 }
 
@@ -437,10 +457,16 @@ static void parseVariableList(SymSet stop) {
     SymSet stop1 = newSet(stop, 1, T_COMMA);
     SymSet stop2 = newSet(stop1, 1, T_NAME);
     
-    parseName(stop1);
+    int name = expectName(stop1);
+    if (name != -1) {
+        defineName(name);
+    }
     while (sym == T_COMMA) {
         expect(T_COMMA, stop2);
-        parseName(stop1);
+        name = expectName(stop1);
+        if (name != -1) {
+            defineName(name);
+        }
     }
 }
 
@@ -484,9 +510,12 @@ static void parseConstantDefinition(SymSet stop) {
     SymSet stop2 = newSet(stop1, 1, T_EQ);
     
     expect(T_CONST, stop2);
-    parseName(stop2);
+    int name = expectName(stop2);
     expect(T_EQ, stop1);
     parseConstant(stop);
+    if (name != -1) {
+        defineName(name);
+    }
 }
 
 /* Definition -> ConstantDefinition | VariableDefinition | ProcedureDefinition */
@@ -521,10 +550,12 @@ static void parseBlock(SymSet stop) {
     SymSet stop2 = unionSet(stop1, stmtFirst);
     SymSet stop3 = unionSet(stop2, defFirst);
     
+    startBlock();
     expect(T_BEGIN, stop3);
     parseDefinitionPart(stop2);
     parseStatementPart(stop1);
     expect(T_END, stop);
+    finishBlock();
 }
 
 /* Program -> Block "." */
@@ -545,6 +576,5 @@ bool parse() {
     
     next();
     parseProgram(endSet);
-    //TODO: Check T_EOF
     return !lexError && !syntaxError;
 }

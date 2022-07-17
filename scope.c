@@ -1,5 +1,7 @@
 #include <stdbool.h>
+#include <stdlib.h>
 #include "scope.h"
+#include "scanner.h"
 
 #define MAX_LEVEL 10
 
@@ -28,7 +30,7 @@ static bool nameExists(int name, int level) {
 
 void defineName(int name) {
     if (nameExists(name, blockLevel)) {
-        //TODO: Mark ambiguous
+        printf("%d: Ambiguous definition\n", getLine());
     } else {
         ObjectRecord *rec = malloc(sizeof(ObjectRecord));
         rec->name = name;
@@ -46,17 +48,17 @@ bool findName(int name) {
             lvl--;
         }
     }
-    //TODO: Mark undefined
+    printf("%d: Undefined name!\n", getLine());
     defineName(name);
     return false;
 }
 
 void startBlock() {
     if (blockLevel+1 >= MAX_LEVEL) {
-        //TODO: Mark error
+        printf("%d: Nesting level is too big!\n", getLine());
     } else {
         blockLevel++;
-        blockTable[blockLevel].prev = null;
+        blockTable[blockLevel].prev = NULL;
     }
 }
 
