@@ -14,6 +14,8 @@ typedef struct {
     ObjectRecord *prev;
 } BlockRecord;
 
+bool analysisError;
+
 static BlockRecord blockTable[MAX_LEVEL];
 static int blockLevel;
 
@@ -29,8 +31,12 @@ static bool nameExists(int name, int level) {
 }
 
 void defineName(int name) {
+    if (name == NO_NAME) {
+        return;
+    }
     if (nameExists(name, blockLevel)) {
         printf("%d: Ambiguous definition '%s'!\n", getLine(), getNameSpel(name));
+        analysisError = true;
     } else {
         ObjectRecord *rec = malloc(sizeof(ObjectRecord));
         rec->name = name;
@@ -49,6 +55,7 @@ bool findName(int name) {
         }
     }
     printf("%d: Undefined name '%s'!\n", getLine(), getNameSpel(name));
+    analysisError = true;
     defineName(name);
     return false;
 }
@@ -56,6 +63,7 @@ bool findName(int name) {
 void startBlock() {
     if (blockLevel+1 >= MAX_LEVEL) {
         printf("%d: Nesting level is too big!\n", getLine());
+        analysisError = true;
     } else {
         blockLevel++;
         blockTable[blockLevel].prev = NULL;

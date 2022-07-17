@@ -94,7 +94,7 @@ static int expectName(SymSet stop) {
     } else {
         markError(stop);
         printf("%d: Expected identifier but found %s\n", getLine(), getSymName(sym));
-        return -1;
+        return NO_NAME;
     }
 }   
 
@@ -446,9 +446,7 @@ static void parseProcedureDefinition(SymSet stop) {
     
     expect(T_PROC, stop2);
     int name = expectName(stop1);
-    if (name != -1) {
-        defineName(name);
-    }
+    defineName(name);
     parseBlock(stop);
 }
 
@@ -458,15 +456,11 @@ static void parseVariableList(SymSet stop) {
     SymSet stop2 = newSet(stop1, 1, T_NAME);
     
     int name = expectName(stop1);
-    if (name != -1) {
-        defineName(name);
-    }
+    defineName(name);
     while (sym == T_COMMA) {
         expect(T_COMMA, stop2);
         name = expectName(stop1);
-        if (name != -1) {
-            defineName(name);
-        }
+        defineName(name);
     }
 }
 
@@ -513,9 +507,7 @@ static void parseConstantDefinition(SymSet stop) {
     int name = expectName(stop2);
     expect(T_EQ, stop1);
     parseConstant(stop);
-    if (name != -1) {
-        defineName(name);
-    }
+    defineName(name);
 }
 
 /* Definition -> ConstantDefinition | VariableDefinition | ProcedureDefinition */
@@ -576,5 +568,5 @@ bool parse() {
     
     next();
     parseProgram(endSet);
-    return !lexError && !syntaxError;
+    return !lexError && !syntaxError && !analysisError;
 }

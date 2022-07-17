@@ -1,0 +1,16 @@
+begin
+    const a = a;
+    Integer b, c, a;
+    Boolean y;
+    const y = 1;
+    
+    proc proc1
+    begin
+        const a = b;
+        none := a;
+        call proc1;
+    end;
+    
+    Integer array proc1[n];
+    
+end.
