@@ -119,30 +119,47 @@ static void parseVariableAccessList();
 static void parseStatementPart();
 
 /* BooleanSymbol -> "false" | "true" */
-static void parseBooleanSymbol(SymSet stop) {
+static int parseBooleanSymbol(SymSet stop) {
+    int value = 0;
     if (sym == T_TRUE) {
+        value = T_TRUE;
         expect(T_TRUE, stop);
     } else if (sym == T_FALSE) {
+        value = T_FALSE;
         expect(T_FALSE, stop);
     } else {
         printf("%d: Expected boolean value but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
+    return value;
 }
 
 /* Constant -> Numeral | BooleanSymbol | Name */
-static void parseConstant(SymSet stop) {
+static int parseConstant(SymSet stop, int *type) {
+    int value = 0;
     if (sym == T_NUM) {
+        *type = T_INTEGER;
+        value = symArg;
         expect(T_NUM, stop);
     } else if (check(2, T_TRUE, T_FALSE)) {
-        parseBooleanSymbol(stop);
+        *type = T_BOOLEAN;
+        value = parseBooleanSymbol(stop);
     } else if (sym == T_NAME) {
-        findName(symArg);
+        ObjectRecord *obj = findName(symArg);
+        if (obj->kind == OBJ_CONST) {
+            *type = obj->as.constant.type;
+            value = obj->as.constant.value;
+        } else {
+            typeError(obj);
+            *type = NO_NAME;
+        }
         expectName(stop);
     } else {
         printf("%d: Expected constant but found %s\n", getLine(), getSymName(sym));
         markError(stop);
+        *type = NO_NAME;
     }
+    return value;
 }
 
 /* IndexedSelector -> "[" Expression "]" */
@@ -446,7 +463,7 @@ static void parseProcedureDefinition(SymSet stop) {
     
     expect(T_PROC, stop2);
     int name = expectName(stop1);
-    defineName(name);
+    defineName(name, OBJ_PROC);
     parseBlock(stop);
 }
 
@@ -456,11 +473,11 @@ static void parseVariableList(SymSet stop) {
     SymSet stop2 = newSet(stop1, 1, T_NAME);
     
     int name = expectName(stop1);
-    defineName(name);
+    defineName(name, OBJ_VAR);
     while (sym == T_COMMA) {
         expect(T_COMMA, stop2);
         name = expectName(stop1);
-        defineName(name);
+        defineName(name, OBJ_VAR);
     }
 }
 
@@ -488,7 +505,8 @@ static void parseVariableDefinition(SymSet stop) {
         expect(T_ARRAY, stop3);
         parseVariableList(stop3);
         expect(T_LSQUAR, stop2);
-        parseConstant(stop1);
+        int type;
+        parseConstant(stop1, &type);
         expect(T_RSQUAR, stop);
     } else if (sym == T_NAME) {
         parseVariableList(stop);
@@ -506,8 +524,12 @@ static void parseConstantDefinition(SymSet stop) {
     expect(T_CONST, stop2);
     int name = expectName(stop2);
     expect(T_EQ, stop1);
-    parseConstant(stop);
-    defineName(name);
+    int type = 0;
+    int value = parseConstant(stop, &type);
+    
+    ObjectRecord *obj = defineName(name, OBJ_CONST);
+    obj->as.constant.value = value;
+    obj->as.constant.type = type;
 }
 
 /* Definition -> ConstantDefinition | VariableDefinition | ProcedureDefinition */

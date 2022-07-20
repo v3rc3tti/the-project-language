@@ -5,11 +5,6 @@
 
 #define MAX_LEVEL 10
 
-typedef struct ObjectRecord_ {
-    int name;
-    struct ObjectRecord_ *prev;
-} ObjectRecord;
-
 typedef struct {
     ObjectRecord *prev;
 } BlockRecord;
@@ -19,45 +14,43 @@ bool analysisError;
 static BlockRecord blockTable[MAX_LEVEL];
 static int blockLevel;
 
-static bool nameExists(int name, int level) {
+static ObjectRecord *nameExists(int name, int level) {
     ObjectRecord *obj = blockTable[level].prev;
     while (obj) {
         if (obj->name == name) {
-            return true;
+            break;
         }
         obj = obj->prev;
     }
-    return false;
+    return obj;
 }
 
-void defineName(int name) {
-    if (name == NO_NAME) {
-        return;
-    }
-    if (nameExists(name, blockLevel)) {
+ObjectRecord *defineName(int name, int kind) {
+    if (name != NO_NAME && nameExists(name, blockLevel)) {
         printf("%d: Ambiguous definition '%s'!\n", getLine(), getNameSpel(name));
         analysisError = true;
-    } else {
-        ObjectRecord *rec = malloc(sizeof(ObjectRecord));
-        rec->name = name;
-        rec->prev = blockTable[blockLevel].prev;
-        blockTable[blockLevel].prev = rec;
     }
+    ObjectRecord *rec = malloc(sizeof(ObjectRecord));
+    rec->name = name;
+    rec->kind = kind;
+    rec->prev = blockTable[blockLevel].prev;
+    blockTable[blockLevel].prev = rec;
+    return rec;
 }
 
-bool findName(int name) {
+ObjectRecord *findName(int name) {
     int lvl = blockLevel;
     while (lvl >= 0) {
-        if (nameExists(name, lvl)) {
-            return true;
+        ObjectRecord *obj = nameExists(name, lvl);
+        if (obj) {
+            return obj;
         } else {
             lvl--;
         }
     }
     printf("%d: Undefined name '%s'!\n", getLine(), getNameSpel(name));
     analysisError = true;
-    defineName(name);
-    return false;
+    return defineName(name, OBJ_UNDEFINED);
 }
 
 void startBlock() {
@@ -72,4 +65,11 @@ void startBlock() {
 
 void finishBlock() {
     blockLevel--;
+}
+
+void typeError(ObjectRecord *obj) {
+    if (obj->kind != OBJ_UNDEFINED) {
+        printf("%d: Incorrect type!\n", getLine());
+        analysisError = true;
+    }
 }
