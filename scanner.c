@@ -218,10 +218,24 @@ Symbol scanNext() {
             case '\0': advance(); return (Symbol){.type=T_EOF};
             default:
                 if (isDigit()) {
+                    char numberStr[11];
+                    int numberLen = 0;
                     while (isDigit()) {
+                        if (numberLen < 10) {
+                            numberStr[numberLen] = ch;
+                        }
+                        numberLen++;
                         advance();
                     }
-                    return (Symbol){.type=T_NUM};
+                    int value = 0;
+                    if (numberLen >= 10) {
+                        //TODO: Improve checking
+                        printf("%d: Number too big!\n", lineNumber);
+                    } else {
+                        numberStr[numberLen] = '\0';
+                        value = atoi(numberStr);
+                    }
+                    return (Symbol){.type=T_NUM, .arg=value};
                 } else if (isAlpha()) {
                     char nameStr[NAME_LEN+1];
                     int nameLen = 0;
