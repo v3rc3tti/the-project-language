@@ -13,7 +13,8 @@ Block -> "begin" DefinitionPart StatementPart "end"
 DefinitionPart -> { Definition ";"}
 Definition -> ConstantDefinition | VariableDefinition | ProcedureDefinition
 ConstantDefinition -> "const" Name "=" Constant
-VariableDefinition -> TypeSymbol ( VariableList | "array" VariableList "[" Constant "]" )
+VariableDefinition -> TypeSymbol ( VariableList | "array" ArrVarList )
+ArrVarList -> Name ("," ArrVarList | "[" Constant "]")
 TypeSymbol -> "Integer" | "Boolean"
 VariableList -> Name { "," Name }
 ProcedureDefinition -> "proc" Name Block

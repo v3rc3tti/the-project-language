@@ -468,48 +468,71 @@ static void parseProcedureDefinition(SymSet stop) {
 }
 
 /* VariableList -> Name { "," Name } */
-static void parseVariableList(SymSet stop) {
+static void parseVariableList(SymSet stop, int type) {
     SymSet stop1 = newSet(stop, 1, T_COMMA);
     SymSet stop2 = newSet(stop1, 1, T_NAME);
     
     int name = expectName(stop1);
-    defineName(name, OBJ_VAR);
+    ObjectRecord *obj = defineName(name, OBJ_VAR);
+    obj->as.var.type = type;
     while (sym == T_COMMA) {
         expect(T_COMMA, stop2);
         name = expectName(stop1);
-        defineName(name, OBJ_VAR);
+        obj = defineName(name, OBJ_VAR);
+        obj->as.var.type = type;
     }
 }
 
 /* TypeSymbol -> "Integer" | "Boolean" */
-static void parseTypeSymbol(SymSet stop) {
+static int parseTypeSymbol(SymSet stop) {
+    int type = NO_NAME;
     if (sym == T_INTEGER) {
+        type = T_INTEGER;
         expect(T_INTEGER, stop);
     } else if (sym == T_BOOLEAN) {
+        type = T_BOOLEAN;
         expect(T_BOOLEAN, stop);
     } else {
         printf("%d: Expected Integer or Boolean but found %s\n", getLine(), getSymName(sym));
         markError(stop);
     }
+    return type;
 }
 
-/* VariableDefinition -> TypeSymbol ( VariableList | "array" VariableList "[" Constant "]" ) */
-static void parseVariableDefinition(SymSet stop) {
+/* ArrVarList -> Name ("," ArrVarList | "[" Constant "]") */
+static int parseArrVarList(SymSet stop, int type) {
     SymSet stop1 = newSet(stop, 1, T_RSQUAR);
     SymSet stop2 = unionSet(stop1, constFirst);
-    SymSet stop3 = newSet(stop2, 1, T_LSQUAR);
-    SymSet stop4 = newSet(stop, 2, T_ARRAY, T_NAME);
+    SymSet stop3 = newSet(stop, 2, T_COMMA, T_LSQUAR);
     
-    parseTypeSymbol(stop4);
-    if (sym == T_ARRAY) {
-        expect(T_ARRAY, stop3);
-        parseVariableList(stop3);
+    int name = expectName(stop3);
+    ObjectRecord *obj = defineName(name, OBJ_ARR);
+    int constValue = 0;
+    if (sym == T_COMMA) {
+        expect(T_COMMA, stop);
+        constValue = parseArrVarList(stop3, type);
+    } else if (sym == T_LSQUAR) {
         expect(T_LSQUAR, stop2);
-        int type;
-        parseConstant(stop1, &type);
+        int constType;
+        constValue = parseConstant(stop1, &constType);
         expect(T_RSQUAR, stop);
+    }
+    obj->as.arr.type = type;
+    obj->as.arr.count = constValue;
+    return constValue;
+}
+
+/* VariableDefinition -> TypeSymbol ( VariableList | "array" ArrVarList ) */
+static void parseVariableDefinition(SymSet stop) {
+    SymSet stop1 = newSet(stop, 1, T_NAME);
+    SymSet stop2 = newSet(stop1, 1, T_ARRAY);
+    
+    int type = parseTypeSymbol(stop2);
+    if (sym == T_ARRAY) {
+        expect(T_ARRAY, stop1);
+        parseArrVarList(stop, type);
     } else if (sym == T_NAME) {
-        parseVariableList(stop);
+        parseVariableList(stop, type);
     } else {
         printf("%d: Expected array or identifier but found %s\n", getLine(), getSymName(sym));
         markError(stop);
