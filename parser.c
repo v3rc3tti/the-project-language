@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include "parser.h"
 #include "scanner.h"
 #include "scope.h"
@@ -7,6 +8,36 @@
 static bool syntaxError;
 static SymbolType sym;
 static int symArg;
+
+typedef struct _AccessList{
+    int type;
+    struct _AccessList *next;
+} AccessList;
+
+static AccessList *newAccessList(int type, AccessList *srcList) {
+    AccessList *list = malloc(sizeof(AccessList));
+    memset(list, 0, sizeof(AccessList));
+    list->type = type;
+    list->next = NULL;
+    if (!srcList) {
+        return list;
+    } else {
+        AccessList *tmp = srcList;
+        while (tmp->next) {
+            tmp = tmp->next;
+        }
+        tmp->next = list;
+        return srcList;
+    }
+}
+
+static void cleanAccessList(AccessList *list) {
+    while (list) {
+        AccessList *next = list->next;
+        free(list);
+        list = next;
+    }
+}
 
 typedef struct {
     bool arr[T_COUNT];
@@ -112,11 +143,11 @@ static bool check(int count, ...) {
     return false;
 }
 
-static void parseBlock();
-static void parseExpression();
-static void parseExpressionList();
-static void parseVariableAccessList();
-static void parseStatementPart();
+static void parseBlock(SymSet stop);
+static void parseExpression(SymSet stop);
+static void parseExpressionList(SymSet stop);
+static AccessList *parseVariableAccessList(SymSet stop);
+static void parseStatementPart(SymSet stop);
 
 /* BooleanSymbol -> "false" | "true" */
 static int parseBooleanSymbol(SymSet stop) {
@@ -150,7 +181,7 @@ static int parseConstant(SymSet stop, int *type) {
             *type = obj->as.constant.type;
             value = obj->as.constant.value;
         } else {
-            typeError(obj);
+            kindError(obj);
             *type = NO_NAME;
         }
         expectName(stop);
@@ -163,7 +194,7 @@ static int parseConstant(SymSet stop, int *type) {
 }
 
 /* IndexedSelector -> "[" Expression "]" */
-static void parseIndexedSelector(SymSet stop) {
+static void parseIndexedSelector(SymSet stop, ObjectRecord *obj) {
     SymSet stop1 = newSet(stop, 1, T_RSQUAR);
     SymSet stop2 = unionSet(stop, exprFirst);
     
@@ -173,42 +204,58 @@ static void parseIndexedSelector(SymSet stop) {
 }
 
 /* VariableAccess -> Name [ IndexedSelector ] */
-static void parseVariableAccess(SymSet stop) {
+static int parseVariableAccess(SymSet stop, int *type) {
     SymSet stop1 = newSet(stop, 1, T_LSQUAR);
     
+    ObjectRecord *obj = NULL;
     if (sym == T_NAME) {
-        findName(symArg);
+        obj = findName(symArg);
     }
     expectName(stop1);
     if (sym == T_LSQUAR) {
-        parseIndexedSelector(stop);
+        parseIndexedSelector(stop, obj);
+    }
+    if (obj->kind == OBJ_CONST) {
+        *type = obj->as.constant.type;
+        return obj->as.constant.value;
+    } else if (obj->kind == OBJ_VAR) {
+        *type = obj->as.var.type;
+        return 0;
+    } else {
+        kindError(obj);
+        *type = NO_NAME;
+        return 0;
     }
 }
 
 /* Factor -> Numeral | BooleanSymbol | VariableAccess | "(" Expression ")" | "~" Factor */
-static void parseFactor(SymSet stop) {
+static int parseFactor(SymSet stop, int *type) {
     SymSet stop1 = newSet(stop, 1, T_RPAREN);
     SymSet stop2 = unionSet(stop1, exprFirst);
     SymSet stop3 = unionSet(stop, termFirst);
     
     if (sym == T_NUM) {
-        expect(T_NUM, stop);
+        return parseConstant(stop, type);
     } else if (check(2, T_TRUE, T_FALSE)) {
-        parseBooleanSymbol(stop);
+        *type = T_BOOLEAN;
+        return parseBooleanSymbol(stop);
     } else if (sym == T_NAME) {
-        parseVariableAccess(stop);
+        int type = 0;
+        parseVariableAccess(stop, &type);
     } else if (sym == T_LPAREN) {
         expect(T_LPAREN, stop2);
         parseExpression(stop1);
         expect(T_RPAREN, stop);
     } else if (sym == T_NOT) {
         expect(T_NOT, stop3);
-        parseFactor(stop);
+        int type = 0;
+        parseFactor(stop, &type);
     } else {
         printf("%d: Expected number, boolean value, identifier, ( or ~ but found %s\n",
             getLine(), getSymName(sym));
         markError(stop);
     }
+    return 0;
 }
 
 /* MultiplyingOperator -> "*" | "/" | "\" */
@@ -230,10 +277,11 @@ static void parseTerm(SymSet stop) {
     SymSet stop1 = newSet(stop, 3, T_MULT, T_DIV, T_MOD);
     SymSet stop2 = unionSet(stop1, termFirst);
     
-    parseFactor(stop1);
+    int type = 0;
+    parseFactor(stop1, &type);
     while (check(3, T_MULT, T_DIV, T_MOD)) {
         parseMultiplyingOperator(stop2);
-        parseFactor(stop1);
+        parseFactor(stop1, &type);
     }
 }
 
@@ -372,9 +420,10 @@ static void parseAssignmentStatement(SymSet stop) {
     SymSet stop1 = unionSet(stop, exprFirst);
     SymSet stop2 = newSet(stop1, 1, T_ASSIGN);
     
-    parseVariableAccessList(stop2);
+    AccessList *list = parseVariableAccessList(stop2);
     expect(T_ASSIGN, stop1);
     parseExpressionList(stop);
+    cleanAccessList(list);
 }
 
 /* ExpressionList -> Expression { "," Expression } */
@@ -398,15 +447,19 @@ static void parseWriteStatement(SymSet stop) {
 }
 
 /* VariableAccessList -> VariableAccess { "," VariableAccess } */
-static void parseVariableAccessList(SymSet stop) {
+static AccessList *parseVariableAccessList(SymSet stop) {
     SymSet stop1 = newSet(stop, 1, T_COMMA);
     SymSet stop2 = newSet(stop1, 1, T_NAME);
     
-    parseVariableAccess(stop1);
+    int type = 0;
+    parseVariableAccess(stop1, &type);
+    AccessList *accList = newAccessList(type, NULL);
     while (sym == T_COMMA) {
         expect(T_COMMA, stop2);
-        parseVariableAccess(stop1);
+        parseVariableAccess(stop1, &type);
+        accList = newAccessList(type, accList);
     }
+    return accList;
 }
 
 /* ReadStatement -> "read" VariableAccessList */
@@ -414,7 +467,15 @@ static void parseReadStatement(SymSet stop) {
     SymSet stop1 = newSet(stop, 1, T_NAME);
     
     expect(T_READ, stop1);
-    parseVariableAccessList(stop);
+    AccessList *list = parseVariableAccessList(stop);
+    AccessList *tmp = list;
+    while (tmp) {
+        if (tmp->type != T_INTEGER) {
+            // TODO: typeError
+        }
+        tmp = tmp->next;
+    }
+    cleanAccessList(list);
 }
 
 /* EmptyStatement -> "skip" */

@@ -67,7 +67,7 @@ void finishBlock() {
     blockLevel--;
 }
 
-void typeError(ObjectRecord *obj) {
+void kindError(ObjectRecord *obj) {
     if (obj->kind != OBJ_UNDEFINED) {
         printf("%d: Incorrect type!\n", getLine());
         analysisError = true;
