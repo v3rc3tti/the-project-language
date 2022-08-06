@@ -27,5 +27,6 @@ ObjectRecord *findName(int name);
 void startBlock();
 void finishBlock();
 void kindError(ObjectRecord *obj);
+void typeError(int type);
 
 #endif

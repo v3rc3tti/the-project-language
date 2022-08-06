@@ -144,8 +144,8 @@ static bool check(int count, ...) {
 }
 
 static void parseBlock(SymSet stop);
-static void parseExpression(SymSet stop);
-static void parseExpressionList(SymSet stop);
+static void parseExpression(SymSet stop, int *type);
+static AccessList *parseExpressionList(SymSet stop);
 static AccessList *parseVariableAccessList(SymSet stop);
 static void parseStatementPart(SymSet stop);
 
@@ -199,7 +199,8 @@ static void parseIndexedSelector(SymSet stop, ObjectRecord *obj) {
     SymSet stop2 = unionSet(stop, exprFirst);
     
     expect(T_LSQUAR, stop2);
-    parseExpression(stop1);
+    int type;
+    parseExpression(stop1, &type);
     expect(T_RSQUAR, stop);
 }
 
@@ -233,6 +234,7 @@ static int parseFactor(SymSet stop, int *type) {
     SymSet stop1 = newSet(stop, 1, T_RPAREN);
     SymSet stop2 = unionSet(stop1, exprFirst);
     SymSet stop3 = unionSet(stop, termFirst);
+    *type = NO_NAME;
     
     if (sym == T_NUM) {
         return parseConstant(stop, type);
@@ -240,16 +242,17 @@ static int parseFactor(SymSet stop, int *type) {
         *type = T_BOOLEAN;
         return parseBooleanSymbol(stop);
     } else if (sym == T_NAME) {
-        int type = 0;
-        parseVariableAccess(stop, &type);
+        parseVariableAccess(stop, type);
     } else if (sym == T_LPAREN) {
         expect(T_LPAREN, stop2);
-        parseExpression(stop1);
+        parseExpression(stop1, type);
         expect(T_RPAREN, stop);
     } else if (sym == T_NOT) {
         expect(T_NOT, stop3);
-        int type = 0;
-        parseFactor(stop, &type);
+        parseFactor(stop, type);
+        if (*type != T_BOOLEAN) {
+            typeError(*type);
+        }
     } else {
         printf("%d: Expected number, boolean value, identifier, ( or ~ but found %s\n",
             getLine(), getSymName(sym));
@@ -273,16 +276,27 @@ static void parseMultiplyingOperator(SymSet stop) {
 }
 
 /* Term -> Factor { MultiplyingOperator Factor } */
-static void parseTerm(SymSet stop) {
+static void parseTerm(SymSet stop, int *type) {
     SymSet stop1 = newSet(stop, 3, T_MULT, T_DIV, T_MOD);
     SymSet stop2 = unionSet(stop1, termFirst);
     
-    int type = 0;
-    parseFactor(stop1, &type);
+    int leftType = NO_NAME;
+    int rightType = NO_NAME;
+    parseFactor(stop1, &leftType);
     while (check(3, T_MULT, T_DIV, T_MOD)) {
         parseMultiplyingOperator(stop2);
-        parseFactor(stop1, &type);
+        parseFactor(stop1, &rightType);
+
+        if (leftType != T_INTEGER) {
+            typeError(leftType);
+            leftType = NO_NAME;
+        }
+        if (rightType != T_INTEGER) {
+            typeError(rightType);
+            leftType = NO_NAME;
+        }
     }
+    *type = leftType;
 }
 
 /* AddingOperator -> "+" | "-" */
@@ -298,44 +312,84 @@ static void parseAddingOperator(SymSet stop) {
 }
 
 /* SimpleExpression -> ["-"] Term { AddingOperator Term } */
-static void parseSimpleExpression(SymSet stop) {
+static void parseSimpleExpression(SymSet stop, int *type) {
     SymSet stop1 = newSet(stop, 2, T_PLUS, T_MINUS);
     SymSet stop2 = unionSet(stop1, termFirst);
     
     if (sym == T_MINUS) {
         expect(T_MINUS, stop2);
     }
-    parseTerm(stop1);
+    
+    int leftType = NO_NAME;
+    int rightType = NO_NAME;
+    parseTerm(stop1, &leftType);
     while (check(2, T_PLUS, T_MINUS)) {
         parseAddingOperator(stop2);
-        parseTerm(stop1);
+        parseTerm(stop1, &rightType);
+        
+        if (leftType != T_INTEGER) {
+            typeError(leftType);
+            leftType = NO_NAME;
+        }
+        if (rightType != T_INTEGER) {
+            typeError(rightType);
+            leftType = NO_NAME;
+        }
     }
+    *type = leftType;
 }
 
 /* RelationalOperator -> "<" | "=" | ">" */
-static void parseRelationalOperator(SymSet stop) {
+static int parseRelationalOperator(SymSet stop) {
     if (sym == T_LES) {
         expect(T_LES, stop);
+        return T_LES;
     } else if (sym == T_EQ) {
         expect(T_EQ, stop);
+        return T_EQ;
     } else if (sym == T_GRE) {
         expect(T_GRE, stop);
+        return T_GRE;
     } else {
         printf("%d: Expected < = or > but found %s\n", getLine(), getSymName(sym));
         markError(stop);
+        return NO_NAME;
     }
 }
 
 /* PrimaryExpression -> SimpleExpression [ RelationalOperator SimpleExpression ] */
-static void parsePrimaryExpression(SymSet stop) {
+static void parsePrimaryExpression(SymSet stop, int *type) {
     SymSet stop1 = newSet(stop, 3, T_LES, T_EQ, T_GRE);
     SymSet stop2 = unionSet(stop1, exprFirst);
     
-    parseSimpleExpression(stop1);
+    int rightType = NO_NAME;
+    int leftType = NO_NAME;
+    parseSimpleExpression(stop1, &leftType);
     if (check(3, T_LES, T_EQ, T_GRE)) {
-        parseRelationalOperator(stop2);
-        parseSimpleExpression(stop1);
+        int oper = parseRelationalOperator(stop2);
+        parseSimpleExpression(stop1, &rightType);
+        if (oper == T_EQ) {
+            if (leftType != rightType) {
+                typeError(rightType);
+                leftType = NO_NAME;
+            } else if (leftType != NO_NAME) {
+                leftType = T_BOOLEAN;
+            }
+        } else {
+            if (leftType != T_INTEGER) {
+                typeError(leftType);
+                leftType = NO_NAME;
+            }
+            if (rightType != T_INTEGER) {
+                typeError(rightType);
+                leftType = NO_NAME;
+            }
+            if (leftType == T_INTEGER && rightType == T_INTEGER) {
+                leftType = T_BOOLEAN;
+            }
+        }
     }
+    *type = leftType;
 }
 
 /* PrimaryOperator -> "&" | "|" */
@@ -351,15 +405,28 @@ static void parsePrimaryOperator(SymSet stop) {
 }
 
 /* Expression -> PrimaryExpression { PrimaryOperator PrimaryExpression } */
-static void parseExpression(SymSet stop) {
+static void parseExpression(SymSet stop, int *type) {
     SymSet stop1 = newSet(stop, 2, T_AND, T_OR);
     SymSet stop2 = unionSet(stop1, exprFirst);
     
-    parsePrimaryExpression(stop1);
+    int leftType = NO_NAME;
+    int rightType = NO_NAME;
+    
+    parsePrimaryExpression(stop1, &leftType);
     while (check(2, T_AND, T_OR)) {
         parsePrimaryOperator(stop2);
-        parsePrimaryExpression(stop1);
+        parsePrimaryExpression(stop1, &rightType);
+        
+        if (leftType != T_BOOLEAN) {
+            typeError(leftType);
+            leftType = NO_NAME;
+        }
+        if (rightType != T_BOOLEAN) {
+            typeError(rightType);
+            leftType = NO_NAME;
+        }
     }
+    *type = leftType;
 }
 
 /* GuardedCommand -> Expression "->" StatementPart */
@@ -367,7 +434,8 @@ static void parseGuardedCommand(SymSet stop) {
     SymSet stop1 = unionSet(stop, stmtFirst);
     SymSet stop2 = newSet(stop1, 1, T_ARROW);
     
-    parseExpression(stop2);
+    int type;
+    parseExpression(stop2, &type);
     expect(T_ARROW, stop1);
     parseStatementPart(stop);
 }
@@ -412,7 +480,11 @@ static void parseProcedureStatement(SymSet stop) {
     if (sym == T_NAME) {
         findName(symArg);
     }
-    expectName(stop);
+    int procName = expectName(stop);
+    ObjectRecord *obj = findName(procName);
+    if (obj->kind != OBJ_PROC) {
+        kindError(obj);
+    }
 }
 
 /* AssignmentStatement -> VariableAccessList ":=" ExpressionList */
@@ -422,20 +494,39 @@ static void parseAssignmentStatement(SymSet stop) {
     
     AccessList *list = parseVariableAccessList(stop2);
     expect(T_ASSIGN, stop1);
-    parseExpressionList(stop);
+    AccessList *srcList = parseExpressionList(stop);
+    
+    AccessList *tmp1 = list;
+    AccessList *tmp2 = srcList;
+    while (tmp2) {
+        if (!tmp1) {
+            //TODO: Number doesn't match
+            break;
+        } else if (tmp1->type != tmp2 -> type) {
+            //TODO: Types doesn't match
+        }
+        
+        tmp1 = tmp1->next;
+        tmp2 = tmp2->next;
+    }
     cleanAccessList(list);
+    cleanAccessList(srcList);
 }
 
 /* ExpressionList -> Expression { "," Expression } */
-static void parseExpressionList(SymSet stop) {
+static AccessList *parseExpressionList(SymSet stop) {
     SymSet stop1 = newSet(stop, 1, T_COMMA);
     SymSet stop2 = unionSet(stop1, exprFirst);
     
-    parseExpression(stop1);
+    int type = NO_NAME;
+    parseExpression(stop1, &type);
+    AccessList *list  = newAccessList(type, NULL);
     while (sym == T_COMMA) {
         expect(T_COMMA, stop2);
-        parseExpression(stop1);
+        parseExpression(stop1, &type);
+        list = newAccessList(type, list);
     }
+    return list;
 }
 
 /* WriteStatement -> "write" ExpressionList */
@@ -443,7 +534,15 @@ static void parseWriteStatement(SymSet stop) {
     SymSet stop1 = unionSet(stop, exprFirst);
     
     expect(T_WRITE, stop1);
-    parseExpressionList(stop);
+    AccessList *list = parseExpressionList(stop);
+    AccessList *tmp = list;
+    while (tmp) {
+        if (tmp->type != T_INTEGER) {
+            typeError(tmp->type);
+        }
+        tmp = tmp->next;
+    }
+    cleanAccessList(list);
 }
 
 /* VariableAccessList -> VariableAccess { "," VariableAccess } */
@@ -471,7 +570,7 @@ static void parseReadStatement(SymSet stop) {
     AccessList *tmp = list;
     while (tmp) {
         if (tmp->type != T_INTEGER) {
-            // TODO: typeError
+            typeError(tmp->type);
         }
         tmp = tmp->next;
     }
