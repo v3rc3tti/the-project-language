@@ -194,7 +194,7 @@ static int parseConstant(SymSet stop, int *type) {
 }
 
 /* IndexedSelector -> "[" Expression "]" */
-static void parseIndexedSelector(SymSet stop, ObjectRecord *obj) {
+static int parseIndexedSelector(SymSet stop, ObjectRecord *obj) {
     SymSet stop1 = newSet(stop, 1, T_RSQUAR);
     SymSet stop2 = unionSet(stop, exprFirst);
     
@@ -202,6 +202,11 @@ static void parseIndexedSelector(SymSet stop, ObjectRecord *obj) {
     int type;
     parseExpression(stop1, &type);
     expect(T_RSQUAR, stop);
+    
+    if (obj->kind != OBJ_ARR) {
+        kindError(obj);
+        return NO_NAME;
+    }
 }
 
 /* VariableAccess -> Name [ IndexedSelector ] */
@@ -213,14 +218,19 @@ static int parseVariableAccess(SymSet stop, int *type) {
         obj = findName(symArg);
     }
     expectName(stop1);
+    int itemType = NO_NAME;
     if (sym == T_LSQUAR) {
         parseIndexedSelector(stop, obj);
     }
+    
     if (obj->kind == OBJ_CONST) {
         *type = obj->as.constant.type;
         return obj->as.constant.value;
     } else if (obj->kind == OBJ_VAR) {
         *type = obj->as.var.type;
+        return 0;
+    } else if (obj->kind == OBJ_ARR) {
+        *type = obj->as.arr.type;
         return 0;
     } else {
         kindError(obj);
