@@ -172,3 +172,68 @@ static void opCall(int level, int addr) {
     bp = sp - 2;
     pc = addr;
 }
+
+static void opArrow(int addr) {
+    if (store[sp] == 1) {
+        pc += 2;
+    } else {
+        pc = addr;
+    }
+    sp--;
+}
+
+static void opBar(int addr) {
+    pc = addr;
+}
+
+static void opFi(int line) {
+    error(line, "If Statement Fails");
+}
+
+static void opProc(int varLen, int addr) {
+    allocate(varLen);
+    pc = addr;
+}
+
+static void opEndProc() {
+    sp = bp - 1;
+    pc = store[bp + 2];
+    bp = store[bp + 1];
+}
+
+static void opEndProg() {
+    isRunning = false;
+}
+
+static void loadProgram() {
+    //TODO: How to load program?
+}
+
+static void runProgram() {
+    isRunning = true;
+    pc = 0;
+    while (isRunning) {
+        OpCode op = store[pc];
+        if (op <= OP_BAR) {
+            switch(op) {
+                case OP_ADD:
+                    opAdd();
+                    break;
+                case OP_AND:
+                    opAnd();
+                    break;
+                case OP_ARROW:
+                    opArrow(store[p + 1]);
+                    break;
+                case OP_ASSIGN:
+                    opAssign(store[p + 1]);
+                    break;
+                case OP_BAR:
+                    opBar(store[p + 1]);
+                    break;
+            }
+        } else if (op <= OP_LESS) {
+            //TODO: Complete
+        }
+    }
+}
